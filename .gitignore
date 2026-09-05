@@ -1,0 +1,15 @@
+# 의존성
+node_modules/
+
+# 빌드 산출물
+dist/
+dist-single/
+
+# 편집 중 백업본
+*.bak
+
+# OS·에디터
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
