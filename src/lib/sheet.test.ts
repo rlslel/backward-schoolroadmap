@@ -6,6 +6,7 @@ import {
   isAllowedSheetUrl,
   loadSheet,
   parseSheet,
+  pickSheetUrl,
   readSheetUrlFromHash,
   sheetIssueNotice,
   type FetchLike,
@@ -290,6 +291,7 @@ describe("시트 가져오기", () => {
 // ══════════════════════════════════════════════════════════
 describe("시드 · 시트 · 사용자 수정 합치기", () => {
   const task = { id: "sports-day", anchor: { mode: "week", month: 9, week: 2 } } as Task;
+  const mine = { mode: "date", date: "2026-09-25" } as const;
 
   it("아무것도 없으면 시드 기본값", () => {
     const r = effectiveAnchor(task, undefined, {});
@@ -303,21 +305,54 @@ describe("시드 · 시트 · 사용자 수정 합치기", () => {
     expect(r.anchor).toEqual({ mode: "date", date: "2026-09-11" });
   });
 
-  it("사용자가 직접 고친 값이 가장 앞선다", () => {
-    const mine = { mode: "date", date: "2026-09-25" } as const;
+  it("학교 확정일이 개인이 고친 값보다 앞선다", () => {
+    // 부장이 학교 전체 사정을 알고 정한 날짜다. 개인 수정 때문에 이걸 못 보면 안 된다.
     const r = effectiveAnchor(task, mine, { "sports-day": "2026-09-11" });
+    expect(r.source).toBe("sheet");
+    expect(r.anchor).toEqual({ mode: "date", date: "2026-09-11" });
+  });
+
+  it("밀려난 개인 수정값을 지우지 않고 함께 돌려준다", () => {
+    // 조용히 없애면 사용자는 자기가 고친 것이 사라진 줄 안다
+    const r = effectiveAnchor(task, mine, { "sports-day": "2026-09-11" });
+    expect(r.ignoredUserAnchor).toEqual(mine);
+  });
+
+  it("시트에 없는 업무는 개인이 고친 값을 쓴다", () => {
+    const r = effectiveAnchor(task, mine, { graduation: "2027-01-09" });
     expect(r.source).toBe("user");
     expect(r.anchor).toEqual(mine);
   });
 
-  it("학교 일정과 달라졌으면 조용히 두지 않고 알려 준다", () => {
-    const mine = { mode: "date", date: "2026-09-25" } as const;
-    const r = effectiveAnchor(task, mine, { "sports-day": "2026-09-11" });
-    expect(r.sheetAnchor).toEqual({ mode: "date", date: "2026-09-11" });
+  it("시트에서 그 줄이 빠지면 고쳐 둔 값이 다시 살아난다", () => {
+    expect(effectiveAnchor(task, mine, { "sports-day": "2026-09-11" }).source).toBe("sheet");
+    expect(effectiveAnchor(task, mine, {}).source).toBe("user");
+  });
+});
+
+describe("시트를 새로 만들어 교체하기", () => {
+  const OLD = "https://docs.google.com/spreadsheets/d/e/OLD/pub?output=csv";
+
+  it("링크로 들어온 주소가 저장된 옛 주소를 이긴다", () => {
+    // 부장이 새 링크를 뿌렸는데 옛 시트를 계속 보면 교체가 안 된다
+    const hash = `#s=${encodeURIComponent(SHEET)}`;
+    expect(pickSheetUrl(hash, OLD)).toBe(SHEET);
   });
 
-  it("다른 업무의 시트 값에 영향받지 않는다", () => {
-    const r = effectiveAnchor(task, undefined, { graduation: "2027-01-09" });
-    expect(r.source).toBe("seed");
+  it("링크에 주소가 없으면 저장해 둔 것을 쓴다", () => {
+    expect(pickSheetUrl("", OLD)).toBe(OLD);
+  });
+
+  it("둘 다 없으면 시드 기본값으로 간다", () => {
+    expect(pickSheetUrl("", undefined)).toBeUndefined();
+  });
+
+  it("저장된 주소가 이상하면 쓰지 않는다", () => {
+    expect(pickSheetUrl("", "https://evil.example.com/x")).toBeUndefined();
+  });
+
+  it("링크 주소가 이상하면 저장된 정상 주소로 넘어간다", () => {
+    const hash = `#s=${encodeURIComponent("https://evil.example.com/x")}`;
+    expect(pickSheetUrl(hash, OLD)).toBe(OLD);
   });
 });

@@ -264,16 +264,22 @@ export type AnchorSource = "seed" | "sheet" | "user";
 export interface EffectiveAnchor {
   anchor: Anchor;
   source: AnchorSource;
-  /** 사용자가 학교 일정과 다르게 고쳐 둔 경우, 학교 일정 값. 화면에서 알려 주는 데 쓴다. */
-  sheetAnchor?: Anchor;
+  /**
+   * 사용자가 앱에서 고쳐 두었지만, 학교 일정이 우선하므로 지금은 쓰이지 않는 값.
+   * 조용히 없애지 않고 화면에서 알려 주는 데 쓴다. 시트에서 그 줄이 빠지면 다시 살아난다.
+   */
+  ignoredUserAnchor?: Anchor;
 }
 
 /**
- * 우선순위: 사용자가 직접 고친 값 > 시트(학교 확정일) > 시드(임시 배치).
+ * 우선순위: 시트(학교 확정일) > 사용자가 직접 고친 값 > 시드(임시 배치).
  *
- * 사용자 수정을 시트보다 앞에 두는 이유는, 앱에서 방금 고친 날짜가 새로고침하면
- * 되돌아가 버리는 것이 더 나쁘기 때문이다. 대신 학교 일정과 달라진 경우
- * `sheetAnchor` 로 알려서 조용히 어긋난 채로 두지 않는다.
+ * 시트를 가장 앞에 두는 이유는 부장이 학교 전체 사정을 알고 정한 날짜이기 때문이다.
+ * 개인이 고쳐 둔 값 때문에 학교 확정일을 못 보게 되면, 여러 사람이 같은 일정을 본다는
+ * 이 앱의 목적 자체가 무너진다.
+ *
+ * 다만 사용자가 고쳐 둔 값을 지우지는 않는다. `ignoredUserAnchor` 로 돌려주어
+ * 화면에서 알릴 수 있게 하고, 시트에서 그 업무가 빠지면 자동으로 다시 쓰인다.
  */
 export function effectiveAnchor(
   task: Task,
@@ -281,9 +287,28 @@ export function effectiveAnchor(
   sheetAnchors: Record<string, string>,
 ): EffectiveAnchor {
   const sheetDate = sheetAnchors[task.id];
-  const sheetAnchor: Anchor | undefined = sheetDate ? { mode: "date", date: sheetDate } : undefined;
 
-  if (userAnchor) return { anchor: userAnchor, source: "user", sheetAnchor };
-  if (sheetAnchor) return { anchor: sheetAnchor, source: "sheet" };
+  if (sheetDate) {
+    return {
+      anchor: { mode: "date", date: sheetDate },
+      source: "sheet",
+      ignoredUserAnchor: userAnchor,
+    };
+  }
+
+  if (userAnchor) return { anchor: userAnchor, source: "user" };
   return { anchor: task.anchor, source: "seed" };
+}
+
+/**
+ * 어느 시트 주소를 쓸지 정한다. 링크로 들어온 주소가 저장된 주소를 이긴다.
+ *
+ * 학교가 시트를 새로 만들면 부장이 새 링크를 뿌린다. 그때 저장된 옛 주소가 이기면
+ * 새 링크를 눌러도 옛날 시트를 계속 보게 된다.
+ */
+export function pickSheetUrl(hash: string, stored: string | undefined): string | undefined {
+  const fromHash = readSheetUrlFromHash(hash);
+  if (fromHash) return fromHash;
+  if (stored && isAllowedSheetUrl(stored)) return stored;
+  return undefined;
 }
