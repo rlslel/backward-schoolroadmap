@@ -4,6 +4,7 @@ node_modules/
 # 빌드 산출물
 dist/
 dist-single/
+*.tsbuildinfo
 
 # 편집 중 백업본
 *.bak
