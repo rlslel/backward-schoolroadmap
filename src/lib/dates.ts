@@ -18,6 +18,27 @@ export function parseISO(text: string): Date | null {
   return date;
 }
 
+/**
+ * 사람이 손으로 적은 날짜를 읽는다. 시트에 어떤 형식으로 적힐지 미리 알 수 없다.
+ * 한국 구글 시트는 날짜 칸을 "2026. 9. 11" 처럼 내보내는 경우가 많다.
+ * 받아들이는 형식: 2026-09-11 · 2026-9-1 · 2026. 9. 11. · 2026.9.11 · 2026/9/11
+ * 읽지 못하면 null. 그 줄만 건너뛰고 나머지는 정상 처리한다.
+ */
+export function parseFlexibleDate(text: string): Date | null {
+  const cleaned = text
+    .trim()
+    .replace(/[./]/g, "-")
+    .replace(/\s+/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(cleaned);
+  if (!m) return null;
+
+  const pad = (v: string) => v.padStart(2, "0");
+  return parseISO(`${m[1]}-${pad(m[2])}-${pad(m[3])}`);
+}
+
 export function toISO(date: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
