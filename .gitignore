@@ -8,6 +8,9 @@ dist-single/
 # 편집 중 백업본
 *.bak
 
+# 오피스 임시 파일 (문서 열어둘 때 생김)
+~$*
+
 # OS·에디터
 Thumbs.db
 .DS_Store
