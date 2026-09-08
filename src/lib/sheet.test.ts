@@ -143,6 +143,39 @@ describe("시트 해석", () => {
 });
 
 // ══════════════════════════════════════════════════════════
+describe("실제 구글 시트가 내보낸 형식", () => {
+  // 2026-09-06, 실제로 「웹에 게시 → CSV」 한 시트에서 그대로 받아 온 내용이다.
+  // 머리글이 없고, 줄바꿈은 CRLF 이며, 날짜는 「2026.9.11.」 처럼 점과 끝점이 붙어 나온다.
+  // 표준 형식만 받았다면 시트를 제대로 만들어도 전부 오류로 튕겼을 것이다.
+  const REAL = [
+    "sports-day,2026.9.11.",
+    "graduation,2027.1.9.",
+    "art-festival,2026.11.20.",
+    "field-trip-spring,2026.5.8.",
+  ].join("\r\n");
+
+  const REAL_IDS = new Set(["sports-day", "graduation", "art-festival", "field-trip-spring"]);
+
+  it("머리글 없이 시작해도 첫 줄을 데이터로 읽는다", () => {
+    const r = parseSheet(REAL, REAL_IDS);
+    expect(r.totalRows).toBe(4);
+    expect(Object.keys(r.anchors).length).toBe(4);
+  });
+
+  it("네 줄을 모두 정확히 읽는다", () => {
+    const r = parseSheet(REAL, REAL_IDS);
+    expect(r.anchors).toEqual({
+      "sports-day": "2026-09-11",
+      graduation: "2027-01-09",
+      "art-festival": "2026-11-20",
+      "field-trip-spring": "2026-05-08",
+    });
+    expect(r.invalidRows).toBe(0);
+    expect(r.unknownIds).toEqual([]);
+  });
+});
+
+// ══════════════════════════════════════════════════════════
 describe("주소 검사 — 아무 주소나 읽지 않는다", () => {
   it("구글 시트 주소만 허용한다", () => {
     expect(isAllowedSheetUrl(SHEET)).toBe(true);
