@@ -42,6 +42,12 @@ export interface TaskOverride {
   anchor?: Anchor;
   enabled?: boolean;
   memo?: string;
+  /**
+   * 사용자가 고친 준비 기간. 하위 업무 id → offsetDays.
+   * 시드의 offsetDays 는 규정이 아니라 제안값이고 일하는 방식은 사람마다 다르다.
+   * 「D-30 이 아니라 D-45 는 돼야 한다」는 판단을 각자 반영할 수 있어야 한다.
+   */
+  offsets?: Record<string, number>;
 }
 
 export interface UiState {
@@ -65,4 +71,15 @@ export const SCHEMA_VERSION = 1;
 
 export function checkKey(taskId: string, subtaskId: string): string {
   return `${taskId}::${subtaskId}`;
+}
+
+/** 준비 기간이 며칠인지. 사용자가 고쳤으면 그 값을, 아니면 시드의 제안값을 쓴다. */
+export function effectiveOffset(subtask: SubTask, override: TaskOverride | undefined): number {
+  const custom = override?.offsets?.[subtask.id];
+  return typeof custom === "number" && Number.isFinite(custom) ? custom : subtask.offsetDays;
+}
+
+/** 사용자가 제안값에서 바꾼 항목인지. 화면에서 「직접 조정함」으로 구분해 보여 준다. */
+export function isOffsetCustomized(subtask: SubTask, override: TaskOverride | undefined): boolean {
+  return effectiveOffset(subtask, override) !== subtask.offsetDays;
 }

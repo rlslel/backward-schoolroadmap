@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DEPTS, SEED_TASKS } from "./tasks.seed";
 import { resolveDate } from "../lib/dates";
-import { checkKey, type Category } from "../types";
+import { checkKey, effectiveOffset, isOffsetCustomized, type Category } from "../types";
+import { buildSheetTemplate, buildTaskLookup, normalizeTitle, parseSheet } from "../lib/sheet";
 
 const byCategory = (c: Category) => SEED_TASKS.filter((t) => t.category === c);
 
@@ -170,5 +171,63 @@ describe("부서와 학년", () => {
       expect(task.anchor.week, `${task.id}`).toBeGreaterThanOrEqual(1);
       expect(task.anchor.week).toBeLessThanOrEqual(5);
     }
+  });
+});
+
+describe("시트에 한글 이름으로 적을 수 있다", () => {
+  it("다듬은 업무 이름이 서로 겹치지 않는다", () => {
+    // 겹치면 시트에 이름을 적었을 때 어느 업무인지 정할 수 없다
+    const titles = SEED_TASKS.map((t) => normalizeTitle(t.title));
+    expect(new Set(titles).size).toBe(titles.length);
+  });
+
+  it("업무 이름으로 시트를 읽으면 그 업무를 찾는다", () => {
+    const lookup = buildTaskLookup(SEED_TASKS);
+    const csv = "업무,확정일\n가을 운동회,2026-09-11\n졸업식,2027-01-09\n봄 현장체험학습,2026-05-08";
+    const r = parseSheet(csv, lookup);
+    expect(r.anchors).toEqual({
+      "sports-day": "2026-09-11",
+      graduation: "2027-01-09",
+      "field-trip-spring": "2026-05-08",
+    });
+    expect(r.unknownIds).toEqual([]);
+  });
+
+  it("서식에 27건이 모두 들어간다", () => {
+    const csv = buildSheetTemplate(SEED_TASKS);
+    const rows = csv.split("\r\n");
+    expect(rows.length).toBe(SEED_TASKS.length + 1); // 머리글 한 줄
+    expect(rows[0]).toBe("업무,확정일");
+  });
+});
+
+describe("준비 기간은 사용자가 고칠 수 있다", () => {
+  const task = SEED_TASKS.find((t) => t.id === "sports-day")!;
+  const quote = task.subtasks.find((s) => s.id === "quote")!;
+
+  it("고치지 않으면 시드의 제안값을 쓴다", () => {
+    expect(effectiveOffset(quote, undefined)).toBe(quote.offsetDays);
+    expect(isOffsetCustomized(quote, undefined)).toBe(false);
+  });
+
+  it("고친 값이 있으면 그 값을 쓴다", () => {
+    const override = { offsets: { quote: -45 } };
+    expect(effectiveOffset(quote, override)).toBe(-45);
+    expect(isOffsetCustomized(quote, override)).toBe(true);
+  });
+
+  it("다른 하위 업무는 영향받지 않는다", () => {
+    const safety = task.subtasks.find((s) => s.id === "safety")!;
+    expect(effectiveOffset(safety, { offsets: { quote: -45 } })).toBe(safety.offsetDays);
+  });
+
+  it("이상한 값이 들어 있으면 제안값으로 돌아간다", () => {
+    for (const junk of [NaN, Infinity, "삼십" as unknown as number, null as unknown as number]) {
+      expect(effectiveOffset(quote, { offsets: { quote: junk } })).toBe(quote.offsetDays);
+    }
+  });
+
+  it("고친 값과 같게 되돌리면 조정 표시가 사라진다", () => {
+    expect(isOffsetCustomized(quote, { offsets: { quote: quote.offsetDays } })).toBe(false);
   });
 });

@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SHEET_CACHE_KEY,
   buildShareLink,
+  buildSheetTemplate,
+  buildTaskLookup,
   effectiveAnchor,
   isAllowedSheetUrl,
   loadSheet,
+  normalizeTitle,
   parseSheet,
   pickSheetUrl,
   readSheetUrlFromHash,
@@ -16,7 +19,12 @@ import { parseFlexibleDate, toISO } from "./dates";
 import { createMemoryStorage } from "./storage";
 import type { Task } from "../types";
 
-const IDS = new Set(["sports-day", "graduation", "art-festival"]);
+const TASKS = [
+  { id: "sports-day", title: "가을 운동회" },
+  { id: "graduation", title: "졸업식" },
+  { id: "art-festival", title: "학예회" },
+] as Task[];
+const IDS = buildTaskLookup(TASKS);
 const SHEET = "https://docs.google.com/spreadsheets/d/e/2PACX-1vAbc/pub?output=csv";
 
 function okFetch(body: string): FetchLike {
@@ -154,7 +162,12 @@ describe("실제 구글 시트가 내보낸 형식", () => {
     "field-trip-spring,2026.5.8.",
   ].join("\r\n");
 
-  const REAL_IDS = new Set(["sports-day", "graduation", "art-festival", "field-trip-spring"]);
+  const REAL_IDS = buildTaskLookup([
+    { id: "sports-day", title: "가을 운동회" },
+    { id: "graduation", title: "졸업식" },
+    { id: "art-festival", title: "학예회" },
+    { id: "field-trip-spring", title: "봄 현장체험학습" },
+  ] as Task[]);
 
   it("머리글 없이 시작해도 첫 줄을 데이터로 읽는다", () => {
     const r = parseSheet(REAL, REAL_IDS);
@@ -172,6 +185,63 @@ describe("실제 구글 시트가 내보낸 형식", () => {
     });
     expect(r.invalidRows).toBe(0);
     expect(r.unknownIds).toEqual([]);
+  });
+});
+
+// ══════════════════════════════════════════════════════════
+describe("한글 업무 이름으로 적어도 읽는다", () => {
+  // 부장이 sports-day 같은 영문 id 를 손으로 치게 하면 안 된다.
+  it("업무 이름을 그대로 적어도 찾는다", () => {
+    const r = parseSheet("업무,확정일\n가을 운동회,2026-09-11\n졸업식,2027-01-09", IDS);
+    expect(r.anchors).toEqual({ "sports-day": "2026-09-11", graduation: "2027-01-09" });
+  });
+
+  it("띄어쓰기가 달라도 같은 업무로 본다", () => {
+    const r = parseSheet("가을운동회,2026-09-11\n  졸업식  ,2027-01-09", IDS);
+    expect(r.anchors).toEqual({ "sports-day": "2026-09-11", graduation: "2027-01-09" });
+  });
+
+  it("한글 이름과 영문 id 를 섞어 적어도 된다", () => {
+    const r = parseSheet("가을 운동회,2026-09-11\ngraduation,2027-01-09", IDS);
+    expect(Object.keys(r.anchors).sort()).toEqual(["graduation", "sports-day"]);
+  });
+
+  it("이름이 아예 다르면 건너뛰고 그 이름을 알려 준다", () => {
+    const r = parseSheet("가을 대운동회,2026-09-11", IDS);
+    expect(r.anchors).toEqual({});
+    expect(r.unknownIds).toEqual(["가을 대운동회"]);
+  });
+
+  it("머리글이 한글이어도 데이터로 오해하지 않는다", () => {
+    const r = parseSheet("업무,확정일\n가을 운동회,2026-09-11", IDS);
+    expect(r.totalRows).toBe(1);
+  });
+
+  it("이름 다듬기", () => {
+    expect(normalizeTitle("  가을  운동회 ")).toBe("가을운동회");
+  });
+});
+
+describe("시트 서식 만들기 — 부장은 날짜만 채운다", () => {
+  it("업무 이름이 미리 채워진 서식을 만든다", () => {
+    const csv = buildSheetTemplate(TASKS);
+    expect(csv.split("\r\n")[0]).toBe("업무,확정일");
+    expect(csv).toContain("가을 운동회,");
+    expect(csv).toContain("졸업식,");
+  });
+
+  it("서식을 그대로 다시 읽으면 빈 날짜라 아무것도 안 나온다", () => {
+    // 아직 아무 날짜도 안 채운 상태다. 오류가 아니라 정상이다.
+    const r = parseSheet(buildSheetTemplate(TASKS), IDS);
+    expect(r.anchors).toEqual({});
+    expect(r.unknownIds).toEqual([]);
+    expect(r.invalidRows).toBe(TASKS.length);
+  });
+
+  it("쉼표가 든 업무 이름도 안전하게 감싼다", () => {
+    const csv = buildSheetTemplate([{ id: "x", title: "가을, 운동회" }] as Task[]);
+    expect(csv).toContain('"가을, 운동회",');
+    expect(parseCsv(csv)[1][0]).toBe("가을, 운동회");
   });
 });
 

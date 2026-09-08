@@ -70,34 +70,70 @@ export interface SheetParseResult {
 
 const EMPTY_RESULT: SheetParseResult = { anchors: {}, unknownIds: [], invalidRows: 0, totalRows: 0 };
 
-/** 첫 줄이 머리글인지 본다. 업무 id 도 아니고 날짜도 아니면 머리글로 본다. */
-function isHeaderRow(row: string[], validTaskIds: ReadonlySet<string>): boolean {
-  const id = (row[0] ?? "").trim();
+/**
+ * 업무 이름을 견주기 좋게 다듬는다.
+ * 부장이 「가을 운동회」를 「가을운동회」로 적거나 앞뒤에 공백이 붙어도 같은 것으로 본다.
+ */
+export function normalizeTitle(text: string): string {
+  return text.replace(/\s+/g, "").trim();
+}
+
+export interface TaskLookup {
+  ids: ReadonlySet<string>;
+  /** 다듬은 업무 이름 → 업무 id */
+  byTitle: ReadonlyMap<string, string>;
+}
+
+/**
+ * 시트 첫 칸에 무엇이 적혀 있든 업무를 찾을 수 있게 표를 만든다.
+ * 부장은 「가을 운동회」라고 적는다. `sports-day` 같은 영문 id 를 손으로 치게 하면 안 된다.
+ */
+export function buildTaskLookup(tasks: Task[]): TaskLookup {
+  const ids = new Set<string>();
+  const byTitle = new Map<string, string>();
+  for (const task of tasks) {
+    ids.add(task.id);
+    byTitle.set(normalizeTitle(task.title), task.id);
+  }
+  return { ids, byTitle };
+}
+
+/** 시트 첫 칸의 값으로 업무 id 를 찾는다. 업무 이름과 영문 id 를 모두 받아들인다. */
+function findTaskId(cell: string, lookup: TaskLookup): string | undefined {
+  const raw = cell.trim();
+  if (lookup.ids.has(raw)) return raw;
+  return lookup.byTitle.get(normalizeTitle(raw));
+}
+
+/** 첫 줄이 머리글인지 본다. 업무도 아니고 날짜도 아니면 머리글로 본다. */
+function isHeaderRow(row: string[], lookup: TaskLookup): boolean {
+  const first = row[0] ?? "";
   const date = (row[1] ?? "").trim();
-  return !validTaskIds.has(id) && parseFlexibleDate(date) === null;
+  return findTaskId(first, lookup) === undefined && parseFlexibleDate(date) === null;
 }
 
 /**
  * CSV 를 업무 id → 확정일로 바꾼다.
  * 한 줄에 오타가 있어도 그 줄만 건너뛰고 나머지는 정상 처리한다.
  */
-export function parseSheet(csvText: string, validTaskIds: ReadonlySet<string>): SheetParseResult {
+export function parseSheet(csvText: string, lookup: TaskLookup): SheetParseResult {
   const rows = dropEmptyRows(parseCsv(csvText));
   if (rows.length === 0) return EMPTY_RESULT;
 
-  const body = isHeaderRow(rows[0], validTaskIds) ? rows.slice(1) : rows;
+  const body = isHeaderRow(rows[0], lookup) ? rows.slice(1) : rows;
 
   const anchors: Record<string, string> = {};
   const unknownIds: string[] = [];
   let invalidRows = 0;
 
   for (const row of body) {
-    const taskId = (row[0] ?? "").trim();
+    const label = (row[0] ?? "").trim();
     const dateText = (row[1] ?? "").trim();
-    if (taskId === "") continue;
+    if (label === "") continue;
 
-    if (!validTaskIds.has(taskId)) {
-      if (!unknownIds.includes(taskId)) unknownIds.push(taskId);
+    const taskId = findTaskId(label, lookup);
+    if (taskId === undefined) {
+      if (!unknownIds.includes(label)) unknownIds.push(label);
       continue;
     }
 
@@ -107,10 +143,22 @@ export function parseSheet(csvText: string, validTaskIds: ReadonlySet<string>): 
       continue;
     }
 
-    anchors[taskId] = toISO(date); // 같은 id 가 여러 줄이면 마지막 값이 남는다
+    anchors[taskId] = toISO(date); // 같은 업무가 여러 줄이면 마지막 값이 남는다
   }
 
   return { anchors, unknownIds, invalidRows, totalRows: body.length };
+}
+
+/**
+ * 학교에 나눠 줄 시트 서식을 만든다.
+ * 업무 이름을 미리 채워 두어 부장은 날짜 칸만 채우면 되게 한다. 이름을 손으로 치지 않으니
+ * 오타로 줄이 통째로 무시되는 일이 없다.
+ */
+export function buildSheetTemplate(tasks: Task[]): string {
+  const escape = (value: string) => (/[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+  const lines = ["업무,확정일"];
+  for (const task of tasks) lines.push(`${escape(task.title)},`);
+  return lines.join("\r\n");
 }
 
 // ── 시트 가져오기 ─────────────────────────────────────────────────
@@ -202,7 +250,7 @@ function formatFetchedAt(iso: string): string {
 
 export interface LoadSheetOptions {
   url: string | undefined;
-  validTaskIds: ReadonlySet<string>;
+  validTaskIds: TaskLookup;
   fetchImpl: FetchLike;
   storage: StorageLike | null;
   now?: Date;
