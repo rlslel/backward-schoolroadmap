@@ -1,1 +1,59 @@
 @import "tailwindcss";
+
+/*
+  색을 이름표로 관리한다. 화면 코드에는 색 값을 직접 쓰지 않는다.
+  나중에 어두운 화면을 추가할 때 여기 값만 갈아끼우면 되고, 화면을 다시 만들 필요가 없다.
+*/
+@theme {
+  /* 바탕과 면 */
+  --color-page: #f5f6f8;
+  --color-card: #ffffff;
+  --color-sunken: #eef0f3;
+
+  /* 글자 */
+  --color-ink: #1b232b;
+  --color-ink-soft: #58646f;
+  --color-ink-faint: #8a949e;
+
+  /* 선 */
+  --color-line: #e2e6ea;
+  --color-line-strong: #cdd4da;
+
+  /* 지연 — 기한이 지났는데 아직 안 한 것 */
+  --color-late: #fdf1f0;
+  --color-late-line: #f0c0ba;
+  --color-late-ink: #a3312a;
+
+  /* 임박 — 7일 안에 해야 하는 것 */
+  --color-soon: #fff7e8;
+  --color-soon-line: #f2d79a;
+  --color-soon-ink: #8a5600;
+
+  /* 완료 */
+  --color-done: #eef7f1;
+  --color-done-ink: #2f7048;
+
+  /* 분류 뱃지 */
+  --color-legal: #fbeeee;
+  --color-legal-ink: #97322c;
+  --color-annual: #eaf1fb;
+  --color-annual-ink: #23558f;
+  --color-grant: #f2eefb;
+  --color-grant-ink: #55399b;
+  --color-custom: #eef0f3;
+  --color-custom-ink: #4a5560;
+}
+
+html {
+  background: var(--color-page);
+}
+
+body {
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 숫자를 세로로 정렬해 날짜가 들쭉날쭉해 보이지 않게 한다 */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
