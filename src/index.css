@@ -57,3 +57,40 @@ body {
 .tnum {
   font-variant-numeric: tabular-nums;
 }
+
+/*
+  인쇄. 라이브러리를 쓰지 않고 브라우저 인쇄 기능만 쓴다.
+  한글 폰트 임베딩 문제와 용량 문제를 원천 차단하기 위해서다.
+*/
+@media print {
+  /* 화면용 껍데기는 인쇄하지 않는다 */
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff;
+  }
+
+  .print-sheet {
+    border: none !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  /* 표가 페이지 중간에서 잘리지 않게 한다 */
+  tr,
+  section {
+    break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+}

@@ -10,12 +10,28 @@ import {
   type StorageLike,
 } from "./lib/storage";
 import { buildTasks, groupByMonth, summarize, urgentItems } from "./lib/view";
+import {
+  ALL_DEPTS,
+  deptsOf,
+  meetingAgenda,
+  pendingDecisions,
+  upcomingAcademic,
+} from "./lib/agenda";
 import type { Store } from "./types";
-import NowPanel from "./components/NowPanel";
+import AgendaSheet from "./components/AgendaSheet";
+import Dashboard from "./components/Dashboard";
 import TaskCard from "./components/TaskCard";
 
 const SCHOOL_YEAR = 2026;
 const LOOKUP = buildTaskLookup(SEED_TASKS);
+
+type Tab = "home" | "schedule" | "agenda";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "home", label: "홈" },
+  { id: "schedule", label: "학사 일정" },
+  { id: "agenda", label: "회의 안건" },
+];
 
 export default function App() {
   const storage = useRef<StorageLike | null>(null);
@@ -25,8 +41,10 @@ export default function App() {
   const [notices, setNotices] = useState<string[]>([]);
   const [sheet, setSheet] = useState<SheetLoadResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>("home");
 
-  // 처음 열 때: 저장된 내용을 읽고, 링크에 실려 온 시트 주소를 확인한다
+  const today = useMemo(() => new Date(), []);
+
   useEffect(() => {
     const loaded = loadStore(storage.current, SCHOOL_YEAR);
     const url = pickSheetUrl(window.location.hash, loaded.store.sheetUrl);
@@ -54,7 +72,6 @@ export default function App() {
     };
   }, []);
 
-  // 바뀔 때마다 저장한다. 저장이 막힌 브라우저에서는 조용히 넘어간다.
   useEffect(() => {
     if (loading) return;
     saveStore(storage.current, store);
@@ -69,6 +86,10 @@ export default function App() {
     });
   }, []);
 
+  const setDept = useCallback((dept: string) => {
+    setStore((prev) => ({ ...prev, ui: { ...prev.ui, dept } }));
+  }, []);
+
   const deleteAll = useCallback(() => {
     if (!window.confirm("이 브라우저에 저장된 완료 표시와 설정을 모두 지웁니다. 계속할까요?")) return;
     clearStore(storage.current);
@@ -78,20 +99,76 @@ export default function App() {
 
   // 캐시하지 않는다. 앵커가 바뀌면 즉시 전부 다시 계산되어야 한다.
   const views = useMemo(
-    () => buildTasks({ tasks: SEED_TASKS, store, sheetAnchors: sheet?.anchors ?? {}, today: new Date() }),
-    [store, sheet],
+    () => buildTasks({ tasks: SEED_TASKS, store, sheetAnchors: sheet?.anchors ?? {}, today }),
+    [store, sheet, today],
   );
+
+  const depts = useMemo(() => [ALL_DEPTS, ...deptsOf(views)], [views]);
+  const dept = depts.includes(store.ui.dept) ? store.ui.dept : ALL_DEPTS;
+
   const months = useMemo(() => groupByMonth(views), [views]);
   const summary = useMemo(() => summarize(views), [views]);
-  const urgent = useMemo(() => urgentItems(views), [views]);
+  const todo = useMemo(() => urgentItems(views), [views]);
+  const agenda = useMemo(() => meetingAgenda(views, dept), [views, dept]);
+  const academic = useMemo(() => upcomingAcademic(views, today), [views, today]);
+  const pendingAll = useMemo(() => pendingDecisions(views, today), [views, today]);
+  const pendingDept = useMemo(
+    () => (dept === ALL_DEPTS ? pendingAll : pendingAll.filter((p) => p.view.task.dept === dept)),
+    [pendingAll, dept],
+  );
 
   return (
     <div className="min-h-screen bg-page">
-      <TopBar sheet={sheet} loading={loading} onDeleteAll={deleteAll} />
+      <header className="no-print border-b border-line bg-card">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+          <h1 className="text-base font-semibold text-ink">학교업무 역산 로드맵</h1>
+          <span className="tnum rounded bg-sunken px-1.5 py-0.5 text-xs text-ink-soft">
+            {SCHOOL_YEAR}학년도
+          </span>
 
-      <main className="mx-auto max-w-4xl px-4 pb-16">
+          <span className="grow" />
+
+          <SheetBadge sheet={sheet} loading={loading} />
+          <SummaryBadges summary={summary} />
+
+          <button
+            type="button"
+            onClick={deleteAll}
+            className="rounded border border-line-strong px-2 py-1 text-xs text-ink-soft hover:bg-sunken"
+          >
+            내 데이터 전체 삭제
+          </button>
+        </div>
+
+        <nav className="mx-auto flex max-w-5xl gap-1 px-4">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              aria-current={tab === t.id ? "page" : undefined}
+              className={`-mb-px border-b-2 px-3 py-2 text-sm ${
+                tab === t.id
+                  ? "border-ink font-medium text-ink"
+                  : "border-transparent text-ink-faint hover:text-ink-soft"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="border-t border-line bg-sunken/60">
+          <p className="mx-auto max-w-5xl px-4 py-1.5 text-[11px] text-ink-soft">
+            완료 표시와 설정은 이 브라우저에만 저장되며 외부로 전송되지 않습니다. 학교 일정 시트는
+            읽기만 합니다.
+          </p>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-5xl px-4 pb-16">
         {notices.length > 0 && (
-          <div className="mt-3 space-y-1.5">
+          <div className="no-print mt-3 space-y-1.5">
             {notices.map((text, i) => (
               <p
                 key={i}
@@ -103,76 +180,104 @@ export default function App() {
           </div>
         )}
 
-        <div className="mt-3">
-          <NowPanel summary={summary} urgent={urgent} onToggle={toggleCheck} />
-        </div>
+        {tab === "home" && (
+          <div className="mt-3">
+            <Dashboard
+              dept={dept}
+              depts={depts}
+              onDeptChange={setDept}
+              agenda={agenda}
+              academic={academic}
+              todo={todo}
+              pending={pendingDept}
+              onToggle={toggleCheck}
+              onOpenAgenda={() => setTab("agenda")}
+              onOpenSchedule={() => setTab("schedule")}
+            />
+          </div>
+        )}
 
-        <div className="mt-5 space-y-5">
-          {months.map((month) => (
-            <section key={month.month}>
-              <h2 className="sticky top-0 z-10 -mx-1 bg-page/95 px-1 py-2 text-sm font-semibold text-ink-soft backdrop-blur">
-                {month.label}
-                <span className="tnum ml-2 font-normal text-ink-faint">{month.tasks.length}건</span>
-              </h2>
+        {tab === "schedule" && (
+          <div className="mt-4 space-y-5">
+            {months.map((month) => (
+              <section key={month.month}>
+                <h2 className="sticky top-0 z-10 -mx-1 bg-page/95 px-1 py-2 text-sm font-semibold text-ink-soft backdrop-blur">
+                  {month.label}
+                  <span className="tnum ml-2 font-normal text-ink-faint">{month.tasks.length}건</span>
+                </h2>
 
-              {month.tasks.length === 0 ? (
-                <p className="px-1 pb-1 text-xs text-ink-faint">등록된 업무가 없습니다.</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {month.tasks.map((view) => (
-                    <TaskCard key={view.task.id} view={view} onToggle={toggleCheck} />
-                  ))}
-                </div>
-              )}
-            </section>
-          ))}
-        </div>
+                {month.tasks.length === 0 ? (
+                  <p className="px-1 pb-1 text-xs text-ink-faint">등록된 업무가 없습니다.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {month.tasks.map((view) => (
+                      <TaskCard key={view.task.id} view={view} onToggle={toggleCheck} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))}
+          </div>
+        )}
 
-        <p className="mt-10 border-t border-line pt-4 text-center text-xs text-ink-faint">
-          본 일정은 참고용 표준안이며, 최종 시행일은 소속 학교·교육청 지침을 따릅니다.
-        </p>
+        {tab === "agenda" && (
+          <div className="mt-4">
+            <div className="no-print mb-3 flex flex-wrap items-center gap-2">
+              <label className="text-xs text-ink-soft">부서</label>
+              <select
+                value={dept}
+                onChange={(e) => setDept(e.target.value)}
+                className="rounded border border-line-strong bg-card px-2 py-1 text-xs text-ink"
+              >
+                {depts.map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </select>
+              <span className="grow" />
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="rounded border border-line-strong bg-card px-3 py-1 text-xs font-medium text-ink hover:bg-sunken"
+              >
+                인쇄
+              </button>
+            </div>
+
+            <AgendaSheet
+              schoolYear={SCHOOL_YEAR}
+              today={today}
+              dept={dept}
+              agenda={agenda}
+              pending={pendingDept}
+            />
+          </div>
+        )}
+
+        {tab !== "agenda" && (
+          <p className="no-print mt-10 border-t border-line pt-4 text-center text-xs text-ink-faint">
+            본 일정은 참고용 표준안이며, 최종 시행일은 소속 학교·교육청 지침을 따릅니다.
+          </p>
+        )}
       </main>
     </div>
   );
 }
 
-function TopBar({
-  sheet,
-  loading,
-  onDeleteAll,
-}: {
-  sheet: SheetLoadResult | null;
-  loading: boolean;
-  onDeleteAll: () => void;
-}) {
+function SummaryBadges({ summary }: { summary: ReturnType<typeof summarize> }) {
+  if (summary.late === 0 && summary.soon === 0) return null;
   return (
-    <header className="border-b border-line bg-card">
-      <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-        <h1 className="text-base font-semibold text-ink">학교업무 역산 로드맵</h1>
-        <span className="tnum rounded bg-sunken px-1.5 py-0.5 text-xs text-ink-soft">
-          {SCHOOL_YEAR}학년도
+    <span className="flex items-center gap-1.5">
+      {summary.late > 0 && (
+        <span className="tnum rounded bg-late px-1.5 py-0.5 text-xs font-medium text-late-ink">
+          지연 {summary.late}
         </span>
-
-        <span className="grow" />
-
-        <SheetBadge sheet={sheet} loading={loading} />
-
-        <button
-          type="button"
-          onClick={onDeleteAll}
-          className="rounded border border-line-strong px-2 py-1 text-xs text-ink-soft hover:bg-sunken"
-        >
-          내 데이터 전체 삭제
-        </button>
-      </div>
-
-      <div className="border-t border-line bg-sunken/60">
-        <p className="mx-auto max-w-4xl px-4 py-1.5 text-[11px] text-ink-soft">
-          완료 표시와 설정은 이 브라우저에만 저장되며 외부로 전송되지 않습니다. 학교 일정 시트는
-          읽기만 합니다.
-        </p>
-      </div>
-    </header>
+      )}
+      {summary.soon > 0 && (
+        <span className="tnum rounded bg-soon px-1.5 py-0.5 text-xs font-medium text-soon-ink">
+          임박 {summary.soon}
+        </span>
+      )}
+    </span>
   );
 }
 
