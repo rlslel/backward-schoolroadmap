@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SHEET_CACHE_KEY,
+  allSheetAnchors,
   buildShareLink,
   buildSheetTemplate,
   buildTaskLookup,
@@ -11,7 +12,10 @@ import {
   parseSheet,
   pickSheetUrl,
   readSheetUrlFromHash,
+  sheetChangeNotice,
   sheetIssueNotice,
+  sheetTaskId,
+  sheetTasksToTasks,
   type FetchLike,
 } from "./sheet";
 import { dropEmptyRows, parseCsv } from "./csv";
@@ -122,15 +126,20 @@ describe("시트 해석", () => {
     expect(r.invalidRows).toBe(1);
   });
 
-  it("앱에 없는 업무 id 는 무시하되 개수를 알린다", () => {
-    const r = parseSheet("업무ID,확정일\nsports-day,2026-09-11\n없는업무,2026-10-01", IDS);
+  it("앱에 없는 업무는 학교가 새로 만든 행사로 본다", () => {
+    // 그냥 버리면 부장이 시트에 새 행사를 적어도 아무에게도 보이지 않는다
+    const r = parseSheet("업무,확정일\nsports-day,2026-09-11\n봄 운동회,2026-03-17", IDS);
     expect(r.anchors).toEqual({ "sports-day": "2026-09-11" });
-    expect(r.unknownIds).toEqual(["없는업무"]);
+    expect(r.added).toEqual([{ name: "봄 운동회", date: "2026-03-17", dept: "공통" }]);
   });
 
-  it("셋째 칸에 메모를 적어 두어도 무시한다", () => {
-    const r = parseSheet("업무ID,확정일,비고\nsports-day,2026-09-11,우천 시 순연", IDS);
-    expect(r.anchors).toEqual({ "sports-day": "2026-09-11" });
+  it("셋째 칸은 부서로 읽는다", () => {
+    const r = parseSheet("업무,확정일,부서\n봄 운동회,2026-03-17,체육", IDS);
+    expect(r.added[0].dept).toBe("체육");
+  });
+
+  it("부서를 안 적으면 공통으로 둔다", () => {
+    expect(parseSheet("봄 운동회,2026-03-17", IDS).added[0].dept).toBe("공통");
   });
 
   it("같은 업무가 여러 줄이면 마지막 값을 쓴다", () => {
@@ -184,7 +193,7 @@ describe("실제 구글 시트가 내보낸 형식", () => {
       "field-trip-spring": "2026-05-08",
     });
     expect(r.invalidRows).toBe(0);
-    expect(r.unknownIds).toEqual([]);
+    expect(r.added).toEqual([]);
   });
 });
 
@@ -209,7 +218,7 @@ describe("한글 업무 이름으로 적어도 읽는다", () => {
   it("이름이 아예 다르면 건너뛰고 그 이름을 알려 준다", () => {
     const r = parseSheet("가을 대운동회,2026-09-11", IDS);
     expect(r.anchors).toEqual({});
-    expect(r.unknownIds).toEqual(["가을 대운동회"]);
+    expect(r.added.map((t) => t.name)).toEqual(["가을 대운동회"]);
   });
 
   it("머리글이 한글이어도 데이터로 오해하지 않는다", () => {
@@ -234,7 +243,7 @@ describe("시트 서식 만들기 — 부장은 날짜만 채운다", () => {
     // 아직 아무 날짜도 안 채운 상태다. 오류가 아니라 정상이다.
     const r = parseSheet(buildSheetTemplate(TASKS), IDS);
     expect(r.anchors).toEqual({});
-    expect(r.unknownIds).toEqual([]);
+    expect(r.added).toEqual([]);
     expect(r.invalidRows).toBe(TASKS.length);
   });
 
@@ -457,5 +466,77 @@ describe("시트를 새로 만들어 교체하기", () => {
   it("링크 주소가 이상하면 저장된 정상 주소로 넘어간다", () => {
     const hash = `#s=${encodeURIComponent("https://evil.example.com/x")}`;
     expect(pickSheetUrl(hash, OLD)).toBe(OLD);
+  });
+});
+
+describe("시트가 학교 일정의 원본이다", () => {
+  it("「없음」이라 적으면 학교 전체에서 끈다", () => {
+    const r = parseSheet("업무,확정일\n가을 운동회,없음", IDS);
+    expect(r.disabled).toEqual(["sports-day"]);
+    expect(r.anchors).toEqual({});
+  });
+
+  it("여러 표기를 「없음」으로 알아본다", () => {
+    for (const off of ["없음", "해당없음", "해당 없음", "미실시", "안함", "-", "X"]) {
+      const r = parseSheet(`가을 운동회,${off}`, IDS);
+      expect(r.disabled, `「${off}」`).toEqual(["sports-day"]);
+    }
+  });
+
+  it("가을 운동회를 끄고 봄 운동회를 넣는 실제 상황", () => {
+    const csv = ["업무,확정일,부서", "가을 운동회,없음", "봄 운동회,2026. 3. 17.,체육", "졸업식,2027. 1. 9."].join(
+      "\n",
+    );
+    const r = parseSheet(csv, IDS);
+    expect(r.disabled).toEqual(["sports-day"]);
+    expect(r.added).toEqual([{ name: "봄 운동회", date: "2026-03-17", dept: "체육" }]);
+    expect(r.anchors).toEqual({ graduation: "2027-01-09" });
+    expect(r.invalidRows).toBe(0);
+  });
+
+  it("시트에만 있는 업무에 기본 준비 절차를 붙인다", () => {
+    const { added } = parseSheet("봄 운동회,2026-03-17,체육", IDS);
+    const 기본 = [
+      { id: "a", title: "계획 수립", offsetDays: -30 },
+      { id: "b", title: "실시", offsetDays: 0 },
+    ];
+    const [task] = sheetTasksToTasks(added, 기본);
+    expect(task.title).toBe("봄 운동회");
+    expect(task.dept).toBe("체육");
+    expect(task.category).toBe("custom");
+    expect(task.anchor).toEqual({ mode: "date", date: "2026-03-17" });
+    expect(task.subtasks.map((s) => s.title)).toEqual(["계획 수립", "실시"]);
+  });
+
+  it("이름이 같으면 항상 같은 id 라서 체크 표시가 유지된다", () => {
+    expect(sheetTaskId("봄 운동회")).toBe(sheetTaskId("봄운동회"));
+    expect(sheetTaskId("봄 운동회")).not.toBe(sheetTaskId("가을 운동회"));
+  });
+
+  it("같은 업무를 여러 줄 적으면 마지막 것만 남긴다", () => {
+    const r = parseSheet("봄 운동회,2026-03-17\n봄 운동회,2026-03-24", IDS);
+    expect(r.added).toHaveLength(1);
+    expect(r.added[0].date).toBe("2026-03-24");
+  });
+
+  it("무엇을 했는지 알려 준다", () => {
+    const r = parseSheet("가을 운동회,없음\n봄 운동회,2026-03-17", IDS);
+    const notice = sheetChangeNotice(r);
+    expect(notice).toContain("1건을 기본 준비 절차로 만들었습니다");
+    expect(notice).toContain("1건을 껐습니다");
+  });
+
+  it("바뀐 것이 없으면 아무 말도 하지 않는다", () => {
+    expect(sheetChangeNotice(parseSheet("가을 운동회,2026-09-11", IDS))).toBeUndefined();
+  });
+});
+
+describe("시트가 정한 확정일 전부", () => {
+  it("시트에만 있는 업무도 시트 확정일로 잡힌다", () => {
+    // 빼면 화면에 「기본 제안일」로 잘못 표시된다
+    const r = parseSheet("가을 운동회,2026-09-11\n봄 운동회,2026-03-17", IDS);
+    const all = allSheetAnchors(r);
+    expect(all["sports-day"]).toBe("2026-09-11");
+    expect(all[sheetTaskId("봄 운동회")]).toBe("2026-03-17");
   });
 });

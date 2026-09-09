@@ -190,7 +190,7 @@ describe("시트에 한글 이름으로 적을 수 있다", () => {
       graduation: "2027-01-09",
       "field-trip-spring": "2026-05-08",
     });
-    expect(r.unknownIds).toEqual([]);
+    expect(r.added).toEqual([]);
   });
 
   it("서식에 27건이 모두 들어간다", () => {

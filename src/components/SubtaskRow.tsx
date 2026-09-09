@@ -46,8 +46,8 @@ export default function SubtaskRow({ item, onToggle, editing, onOffsetChange }: 
   const dim = done || item.status === "missed";
 
   return (
-    <li className={`rounded-md ${STATUS_STYLE[item.status]}`}>
-      <div className="flex items-start gap-2.5 px-2 py-1.5">
+    <li className={STATUS_STYLE[item.status]}>
+      <div className="flex items-start gap-2.5 px-1.5 py-2">
         <input
           type="checkbox"
           checked={done}

@@ -93,6 +93,10 @@ export interface BuildViewOptions {
   sheetAnchors: Record<string, string>;
   today: Date;
   weekendAdjust?: boolean;
+  /** 시트에만 있는 업무. 학교가 시트에 새로 적은 행사다. */
+  sheetTasks?: Task[];
+  /** 시트에서 「없음」으로 꺼 둔 업무. 학교 전체에 적용된다. */
+  sheetDisabled?: readonly string[];
 }
 
 function buildTask(task: Task, options: BuildViewOptions): ViewTask | null {
@@ -147,11 +151,22 @@ function buildTask(task: Task, options: BuildViewOptions): ViewTask | null {
   };
 }
 
-/** 켜져 있는 업무만 화면에 쓸 모양으로 바꾼다. */
+/**
+ * 켜져 있는 업무만 화면에 쓸 모양으로 바꾼다.
+ *
+ * 시트에서 끈 것이 개인 설정보다 앞선다. 학교가 「우리는 이 행사를 안 한다」고 정한 것이므로
+ * 개인이 켜 두었더라도 화면에서 뺀다.
+ */
 export function buildTasks(options: BuildViewOptions): ViewTask[] {
-  const all = [...options.tasks, ...options.store.customTasks];
+  const off = new Set(options.sheetDisabled ?? []);
+  const all = [...options.tasks, ...(options.sheetTasks ?? []), ...options.store.customTasks];
+
   const result: ViewTask[] = [];
+  const seen = new Set<string>();
   for (const task of all) {
+    if (seen.has(task.id)) continue; // 시트와 직접 추가에 같은 업무가 있으면 앞의 것을 쓴다
+    seen.add(task.id);
+    if (off.has(task.id)) continue;
     if (!effectiveEnabled(task, options.store.overrides[task.id])) continue;
     const view = buildTask(task, options);
     if (view) result.push(view);

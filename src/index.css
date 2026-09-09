@@ -34,27 +34,27 @@
   --color-done-ink: #4a7554;
 
   /* 분류 — 파스텔 톤. 카드마다 다른 색으로 한눈에 구분되게 한다 */
-  --color-legal: #fbeeef;
-  --color-legal-line: #eecdd1;
-  --color-legal-ink: #8f4650;
+  --color-legal: #f9dfe3;
+  --color-legal-line: #e8bcc3;
+  --color-legal-ink: #8a3f4b;
 
-  --color-annual: #eaf1f8;
-  --color-annual-line: #c7d9ea;
-  --color-annual-ink: #3a6088;
+  --color-annual: #dceaf6;
+  --color-annual-line: #b6cee5;
+  --color-annual-ink: #2f5680;
 
-  --color-grant: #f1eefa;
-  --color-grant-line: #d5cded;
-  --color-grant-ink: #5b4c8c;
+  --color-grant: #e8e2f6;
+  --color-grant-line: #cabfe6;
+  --color-grant-ink: #524184;
 
-  --color-custom: #eaf4ef;
-  --color-custom-line: #c6e0d3;
-  --color-custom-ink: #3d7059;
+  --color-custom: #d9eee3;
+  --color-custom-line: #b2d8c5;
+  --color-custom-ink: #326650;
 
   /* 네 칸 요약에 쓰는 파스텔 — 칸마다 다른 색으로 구분한다 */
-  --color-panel-a: #f2eefa;
-  --color-panel-b: #eaf1f8;
-  --color-panel-c: #fdf3e9;
-  --color-panel-d: #eaf4ef;
+  --color-panel-a: #e8e2f6;
+  --color-panel-b: #dceaf6;
+  --color-panel-c: #fbe9d6;
+  --color-panel-d: #d9eee3;
 }
 
 html {
@@ -78,20 +78,73 @@ body {
 .card {
   background: var(--color-card);
   border: 1px solid var(--color-line);
-  border-radius: 12px;
+  border-radius: 10px;
   box-shadow:
-    0 1px 2px rgb(35 33 29 / 0.04),
-    0 2px 6px rgb(35 33 29 / 0.05);
+    0 1px 2px rgb(35 33 29 / 0.05),
+    0 3px 8px rgb(35 33 29 / 0.06);
 }
 
 .card-hover {
-  transition: box-shadow 120ms ease;
+  transition:
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
 
 .card-hover:hover {
   box-shadow:
-    0 1px 2px rgb(35 33 29 / 0.05),
-    0 4px 12px rgb(35 33 29 / 0.08);
+    0 2px 4px rgb(35 33 29 / 0.06),
+    0 8px 20px rgb(35 33 29 / 0.10);
+  transform: translateY(-1px);
+}
+
+/*
+  업무 카드를 메모지처럼 보이게 한다.
+  머리는 파스텔 색지, 몸통은 줄 공책이다. 왼쪽에 공책 여백선을 세로로 긋는다.
+*/
+.notepad {
+  position: relative;
+  background: #fffdf9;
+}
+
+/* 공책 여백선. 체크칸과 날짜 사이에 오도록 위치를 잡았다. */
+.notepad::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2.05rem;
+  width: 1px;
+  background: #e6a9a2;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* 줄. 각 항목의 아래쪽에 그어 항목 높이가 달라져도 줄이 어긋나지 않는다. */
+.ruled > li {
+  border-bottom: 1px solid var(--color-line);
+}
+
+.ruled > li:last-child {
+  border-bottom: none;
+}
+
+/* 메모지 위쪽에 붙이는 테이프 자국 */
+.tape {
+  position: relative;
+}
+
+.tape::after {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 54px;
+  height: 11px;
+  transform: translateX(-50%) rotate(-1.5deg);
+  background: rgb(255 255 255 / 0.55);
+  border-left: 1px solid rgb(35 33 29 / 0.05);
+  border-right: 1px solid rgb(35 33 29 / 0.05);
+  pointer-events: none;
 }
 
 /*

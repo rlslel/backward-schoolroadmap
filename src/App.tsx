@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEPTS, SEED_TASKS } from "./data/tasks.seed";
-import { buildTaskLookup, loadSheet, pickSheetUrl, sheetIssueNotice, type SheetLoadResult } from "./lib/sheet";
+import {
+  allSheetAnchors,
+  buildTaskLookup,
+  loadSheet,
+  pickSheetUrl,
+  sheetChangeNotice,
+  sheetIssueNotice,
+  sheetTasksToTasks,
+  type SheetLoadResult,
+} from "./lib/sheet";
 import {
   clearStore,
   createEmptyStore,
@@ -23,6 +32,7 @@ import {
 } from "./lib/meeting";
 import type { Store } from "./types";
 import {
+  DEFAULT_SUBTASKS,
   addCustomTask,
   buildCustomTask,
   disabledSeedTasks,
@@ -95,7 +105,9 @@ export default function App() {
       if (cancelled) return;
       setSheet(result);
       setLoading(false);
-      const messages = [result.notice, sheetIssueNotice(result)].filter(Boolean) as string[];
+      const messages = [result.notice, sheetIssueNotice(result), sheetChangeNotice(result)].filter(
+        Boolean,
+      ) as string[];
       if (messages.length > 0) setNotices((n) => [...n, ...messages]);
     });
 
@@ -220,7 +232,9 @@ export default function App() {
       buildTasks({
         tasks: SEED_TASKS,
         store,
-        sheetAnchors: sampleAnchors ?? sheet?.anchors ?? {},
+        sheetAnchors: sampleAnchors ?? (sheet ? allSheetAnchors(sheet) : {}),
+        sheetTasks: sampleAnchors ? [] : sheetTasksToTasks(sheet?.added ?? [], DEFAULT_SUBTASKS),
+        sheetDisabled: sampleAnchors ? [] : (sheet?.disabled ?? []),
         today,
       }),
     [store, sheet, today, sampleAnchors],

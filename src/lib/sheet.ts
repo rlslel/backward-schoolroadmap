@@ -3,7 +3,7 @@
 // 시트는 서버 대신 쓰는 공유 창고다. 앱은 읽기만 하고 절대 쓰지 않는다.
 // 구글 로그인, API 키, 앱스스크립트를 쓰지 않는다. 「웹에 게시」로 공개된 CSV 주소만 읽는다.
 
-import type { Anchor, Task } from "../types";
+import type { Anchor, SubTask, Task } from "../types";
 import { parseFlexibleDate, toISO } from "./dates";
 import { dropEmptyRows, parseCsv } from "./csv";
 import type { StorageLike } from "./storage";
@@ -57,18 +57,40 @@ export function buildShareLink(appUrl: string, sheetUrl: string): string {
 
 // ── 시트 내용 해석 ────────────────────────────────────────────────
 
+export interface SheetTask {
+  /** 시트에 적힌 업무 이름. 이 이름으로 id 를 만들기 때문에 이름을 바꾸면 새 업무가 된다. */
+  name: string;
+  date: string; // ISO
+  dept: string;
+}
+
 export interface SheetParseResult {
-  /** 업무 id → 확정일(ISO). 시드의 기본 날짜를 덮어쓴다. */
+  /** 이미 아는 업무의 확정일. 업무 id → ISO 날짜. */
   anchors: Record<string, string>;
-  /** 시트에 있는데 앱에는 없는 업무 id. 조용히 무시하되 개수는 알린다. */
-  unknownIds: string[];
+  /** 시트에만 있는 업무. 학교가 새로 만든 행사다. */
+  added: SheetTask[];
+  /** 날짜 칸에 「없음」이라 적어 학교 전체에서 끈 업무의 id. */
+  disabled: string[];
   /** 날짜를 읽지 못해 건너뛴 줄 수. */
   invalidRows: number;
   /** 읽어들인 데이터 줄 수 (머리글 제외). */
   totalRows: number;
 }
 
-const EMPTY_RESULT: SheetParseResult = { anchors: {}, unknownIds: [], invalidRows: 0, totalRows: 0 };
+const EMPTY_RESULT: SheetParseResult = {
+  anchors: {},
+  added: [],
+  disabled: [],
+  invalidRows: 0,
+  totalRows: 0,
+};
+
+/** 날짜 칸에 이렇게 적으면 「우리 학교는 이 업무를 하지 않는다」는 뜻이다. */
+const OFF_VALUES = ["없음", "해당없음", "해당 없음", "미실시", "안함", "안 함", "-", "–", "x", "X"];
+
+function isOffValue(text: string): boolean {
+  return OFF_VALUES.includes(text.trim());
+}
 
 /**
  * 업무 이름을 견주기 좋게 다듬는다.
@@ -76,6 +98,11 @@ const EMPTY_RESULT: SheetParseResult = { anchors: {}, unknownIds: [], invalidRow
  */
 export function normalizeTitle(text: string): string {
   return text.replace(/\s+/g, "").trim();
+}
+
+/** 시트에만 있는 업무의 id. 이름이 같으면 항상 같은 id 라서 체크 표시가 유지된다. */
+export function sheetTaskId(name: string): string {
+  return `sheet-${normalizeTitle(name)}`;
 }
 
 export interface TaskLookup {
@@ -107,14 +134,23 @@ function findTaskId(cell: string, lookup: TaskLookup): string | undefined {
 
 /** 첫 줄이 머리글인지 본다. 업무도 아니고 날짜도 아니면 머리글로 본다. */
 function isHeaderRow(row: string[], lookup: TaskLookup): boolean {
-  const first = row[0] ?? "";
+  const first = (row[0] ?? "").trim();
   const date = (row[1] ?? "").trim();
-  return findTaskId(first, lookup) === undefined && parseFlexibleDate(date) === null;
+  if (first === "") return true;
+  if (findTaskId(first, lookup) !== undefined) return false;
+  return parseFlexibleDate(date) === null && !isOffValue(date);
 }
 
 /**
- * CSV 를 업무 id → 확정일로 바꾼다.
- * 한 줄에 오타가 있어도 그 줄만 건너뛰고 나머지는 정상 처리한다.
+ * 시트를 읽는다. 시트가 학교 일정의 원본이다.
+ *
+ * - 아는 업무 이름 + 날짜 → 그 업무의 확정일을 덮어쓴다
+ * - 모르는 업무 이름 + 날짜 → **학교가 새로 만든 행사로 본다.** 기본 준비 절차를 붙여 만든다
+ * - 날짜 칸이 「없음」 → **학교 전체에서 그 업무를 끈다**
+ * - 그 외 읽을 수 없는 줄 → 그 줄만 건너뛴다
+ *
+ * 모르는 이름을 그냥 버리면, 부장이 시트에 새 행사를 적어도 아무에게도 보이지 않는다.
+ * 그러면 학교가 함께 쓰는 수단으로서 시트가 무의미해진다.
  */
 export function parseSheet(csvText: string, lookup: TaskLookup): SheetParseResult {
   const rows = dropEmptyRows(parseCsv(csvText));
@@ -123,17 +159,21 @@ export function parseSheet(csvText: string, lookup: TaskLookup): SheetParseResul
   const body = isHeaderRow(rows[0], lookup) ? rows.slice(1) : rows;
 
   const anchors: Record<string, string> = {};
-  const unknownIds: string[] = [];
+  const added: SheetTask[] = [];
+  const disabled: string[] = [];
   let invalidRows = 0;
 
   for (const row of body) {
     const label = (row[0] ?? "").trim();
     const dateText = (row[1] ?? "").trim();
+    const dept = (row[2] ?? "").trim();
     if (label === "") continue;
 
-    const taskId = findTaskId(label, lookup);
-    if (taskId === undefined) {
-      if (!unknownIds.includes(label)) unknownIds.push(label);
+    const known = findTaskId(label, lookup);
+
+    if (isOffValue(dateText)) {
+      const id = known ?? sheetTaskId(label);
+      if (!disabled.includes(id)) disabled.push(id);
       continue;
     }
 
@@ -143,10 +183,18 @@ export function parseSheet(csvText: string, lookup: TaskLookup): SheetParseResul
       continue;
     }
 
-    anchors[taskId] = toISO(date); // 같은 업무가 여러 줄이면 마지막 값이 남는다
+    if (known) {
+      anchors[known] = toISO(date); // 같은 업무가 여러 줄이면 마지막 값이 남는다
+    } else {
+      const id = sheetTaskId(label);
+      const 이미 = added.findIndex((t) => sheetTaskId(t.name) === id);
+      const entry = { name: label, date: toISO(date), dept: dept || "공통" };
+      if (이미 >= 0) added[이미] = entry;
+      else added.push(entry);
+    }
   }
 
-  return { anchors, unknownIds, invalidRows, totalRows: body.length };
+  return { anchors, added, disabled, invalidRows, totalRows: body.length };
 }
 
 /**
@@ -296,13 +344,41 @@ export async function loadSheet(options: LoadSheetOptions): Promise<SheetLoadRes
   }
 }
 
+/**
+ * 시트가 정한 확정일 전부. 시트에만 있는 업무도 포함한다.
+ * 이걸 빼면 시트에서 온 업무가 화면에 「기본 제안일」로 잘못 표시된다.
+ */
+export function allSheetAnchors(result: SheetParseResult): Record<string, string> {
+  const anchors = { ...result.anchors };
+  for (const t of result.added) anchors[sheetTaskId(t.name)] = t.date;
+  return anchors;
+}
+
+/** 시트에만 있는 업무를 앱이 쓰는 모양으로 바꾼다. 준비 절차는 기본값을 붙인다. */
+export function sheetTasksToTasks(added: SheetTask[], defaultSubtasks: SubTask[]): Task[] {
+  return added.map((t) => ({
+    id: sheetTaskId(t.name),
+    title: t.name,
+    category: "custom" as const,
+    dept: t.dept,
+    anchor: { mode: "date" as const, date: t.date },
+    enabled: true,
+    subtasks: defaultSubtasks.map((s) => ({ ...s })),
+  }));
+}
+
 /** 사용자에게 알릴 만한 문제가 있으면 한 줄로 만든다. */
 export function sheetIssueNotice(result: SheetParseResult): string | undefined {
+  if (result.invalidRows === 0) return undefined;
+  return `시트에서 날짜를 읽지 못한 ${result.invalidRows}줄을 건너뛰었습니다.`;
+}
+
+/** 시트가 무엇을 했는지 알려 준다. 조용히 바뀌면 사용자는 앱이 고장 난 줄 안다. */
+export function sheetChangeNotice(result: SheetParseResult): string | undefined {
   const parts: string[] = [];
-  if (result.invalidRows > 0) parts.push(`날짜를 읽지 못한 ${result.invalidRows}줄`);
-  if (result.unknownIds.length > 0) parts.push(`앱에 없는 업무 ${result.unknownIds.length}건`);
-  if (parts.length === 0) return undefined;
-  return `시트에서 ${parts.join("과 ")}을 건너뛰었습니다.`;
+  if (result.added.length > 0) parts.push(`시트에만 있는 업무 ${result.added.length}건을 기본 준비 절차로 만들었습니다`);
+  if (result.disabled.length > 0) parts.push(`「없음」으로 적힌 업무 ${result.disabled.length}건을 껐습니다`);
+  return parts.length === 0 ? undefined : `${parts.join(". ")}.`;
 }
 
 // ── 시드 · 시트 · 사용자 수정 합치기 ──────────────────────────────
