@@ -1,5 +1,6 @@
 import type { AgendaEntry, PendingDecision } from "../lib/agenda";
 import type { ViewSubtask, ViewTask } from "../lib/view";
+import type { MeetingBody } from "../types";
 
 function Panel({
   title,
@@ -50,9 +51,9 @@ function DayTag({ item }: { item: ViewSubtask }) {
 }
 
 interface Props {
-  dept: string;
-  depts: string[];
-  onDeptChange: (dept: string) => void;
+  meeting: MeetingBody;
+  meetings: MeetingBody[];
+  onMeetingChange: (id: string) => void;
   agenda: AgendaEntry[];
   academic: ViewTask[];
   todo: { task: ViewTask; subtask: ViewSubtask }[];
@@ -63,9 +64,9 @@ interface Props {
 }
 
 export default function Dashboard({
-  dept,
-  depts,
-  onDeptChange,
+  meeting,
+  meetings,
+  onMeetingChange,
   agenda,
   academic,
   todo,
@@ -80,18 +81,20 @@ export default function Dashboard({
     <div className="grid gap-3 md:grid-cols-2">
       {/* ① 부서 회의 안건 */}
       <Panel
-        title={`${dept} 회의 안건`}
+        title={`${meeting.name} 회의 안건`}
         count={안건수 > 0 ? `${안건수}건` : undefined}
         action={
           <>
             <select
-              value={dept}
-              onChange={(e) => onDeptChange(e.target.value)}
-              aria-label="부서 선택"
-              className="rounded border border-line-strong bg-card px-1.5 py-0.5 text-xs text-ink-soft"
+              value={meeting.id}
+              onChange={(e) => onMeetingChange(e.target.value)}
+              aria-label="회의 선택"
+              className="max-w-32 rounded border border-line-strong bg-card px-1.5 py-0.5 text-xs text-ink-soft"
             >
-              {depts.map((d) => (
-                <option key={d}>{d}</option>
+              {meetings.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
               ))}
             </select>
             <button
@@ -105,7 +108,7 @@ export default function Dashboard({
         }
       >
         {agenda.length === 0 ? (
-          <Empty text="이번 달 이 부서에서 다룰 안건이 없습니다." />
+          <Empty text="이번 달 이 회의에서 다룰 안건이 없습니다." />
         ) : (
           <ul className="space-y-2">
             {agenda.slice(0, 6).map((entry) => (

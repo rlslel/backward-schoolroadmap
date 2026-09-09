@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import {
-  ALL_DEPTS,
-  agendaTitle,
-  deptsOf,
-  meetingAgenda,
-  pendingDecisions,
-  upcomingAcademic,
-} from "./agenda";
+import { agendaTitle, deptsOf, meetingAgenda, pendingDecisions, schoolDepts, upcomingAcademic } from "./agenda";
+import type { MeetingBody } from "../types";
+
+const 전체회의: MeetingBody = { id: "all", name: "전체", depts: [], grades: [], taskIds: [] };
+const 부서회의 = (dept: string): MeetingBody => ({
+  id: `d-${dept}`,
+  name: dept,
+  depts: [dept],
+  grades: [],
+  taskIds: [],
+});
 import { buildTasks } from "./view";
 import { createEmptyStore } from "./storage";
 import { parseISO } from "./dates";
@@ -47,20 +50,36 @@ describe("부서 목록", () => {
   it("업무가 있는 부서만 모은다", () => {
     expect(deptsOf(views)).toEqual(["생활", "체육"]);
   });
+
+  it("회의체를 만들 때는 시드의 부서를 전부 쓴다", () => {
+    // 공모 사업만 있는 부서는 그 사업이 꺼져 있으면 화면에 안 나온다.
+    // 그렇다고 목록에서 빼면 그 부서로 회의체를 만들 수조차 없다.
+    const list = schoolDepts(["공통", "정보", "방과후"], []);
+    expect(list).toContain("정보");
+    expect(list).toContain("방과후");
+  });
+
+  it("직접 추가한 업무의 부서도 합친다", () => {
+    expect(schoolDepts(["공통"], [{ dept: "도서관" }])).toEqual(["공통", "도서관"]);
+  });
+
+  it("빈 부서 이름은 넣지 않는다", () => {
+    expect(schoolDepts(["공통"], [{ dept: "  " }])).toEqual(["공통"]);
+  });
 });
 
 describe("부서 회의 안건", () => {
-  it("고른 부서 것만 올린다", () => {
-    const agenda = meetingAgenda(views, "체육");
+  it("고른 회의 것만 올린다", () => {
+    const agenda = meetingAgenda(views, 부서회의("체육"));
     expect(agenda.map((e) => e.task.task.id)).toEqual(["sports-day"]);
   });
 
-  it("전체를 고르면 모든 부서를 올린다", () => {
-    expect(meetingAgenda(views, ALL_DEPTS)).toHaveLength(2);
+  it("전체 회의는 모든 부서를 올린다", () => {
+    expect(meetingAgenda(views, 전체회의)).toHaveLength(2);
   });
 
   it("한 달 안의 항목만 담는다", () => {
-    const [entry] = meetingAgenda(views, "체육");
+    const [entry] = meetingAgenda(views, 부서회의("체육"));
     // 계획 수립(지연) · 물품 품의(3일 뒤) · 실시(17일 뒤)는 담고, 정산(60일 뒤)은 뺀다
     expect(entry.items.map((i) => i.subtask.id)).toEqual(["plan", "quote", "run"]);
   });
@@ -68,7 +87,7 @@ describe("부서 회의 안건", () => {
   it("이미 완료한 항목은 안건에서 뺀다", () => {
     const done = { ...store, checks: { "sports-day::plan": true } };
     const v = buildTasks({ tasks: [운동회], store: done, sheetAnchors: {}, today: TODAY });
-    const [entry] = meetingAgenda(v, "체육");
+    const [entry] = meetingAgenda(v, 부서회의("체육"));
     expect(entry.items.map((i) => i.subtask.id)).toEqual(["quote", "run"]);
   });
 
@@ -76,7 +95,7 @@ describe("부서 회의 안건", () => {
     // 회의에서 다룰 수 있는 것만 올린다
     const 봄: Task = { ...운동회, anchor: { mode: "date", date: "2026-05-08" } };
     const v = buildTasks({ tasks: [봄], store, sheetAnchors: {}, today: TODAY });
-    expect(meetingAgenda(v, "체육")).toHaveLength(0);
+    expect(meetingAgenda(v, 부서회의("체육"))).toHaveLength(0);
   });
 
   it("다룰 것이 없는 업무는 아예 안 올린다", () => {
@@ -85,11 +104,11 @@ describe("부서 회의 안건", () => {
       subtasks: [{ id: "x", title: "먼 일", offsetDays: 200 }],
     };
     const v = buildTasks({ tasks: [먼일], store, sheetAnchors: {}, today: TODAY });
-    expect(meetingAgenda(v, "체육")).toHaveLength(0);
+    expect(meetingAgenda(v, 부서회의("체육"))).toHaveLength(0);
   });
 
   it("급한 것부터 순서대로 올린다", () => {
-    const agenda = meetingAgenda(views, ALL_DEPTS);
+    const agenda = meetingAgenda(views, 전체회의);
     const first = agenda[0].items[0].date.getTime();
     const second = agenda[1].items[0].date.getTime();
     expect(first).toBeLessThanOrEqual(second);
@@ -175,10 +194,10 @@ describe("정해야 할 것", () => {
 
 describe("인쇄물 제목", () => {
   it("학년도·월·부서를 넣는다", () => {
-    expect(agendaTitle(2026, TODAY, "체육")).toBe("2026학년도 9월 체육 협의 안건");
+    expect(agendaTitle(2026, TODAY, "미래두레")).toBe("2026학년도 9월 미래두레 협의 안건");
   });
 
   it("전체를 고르면 전체로 적는다", () => {
-    expect(agendaTitle(2026, TODAY, ALL_DEPTS)).toBe("2026학년도 9월 전체 협의 안건");
+    expect(agendaTitle(2026, TODAY, "전체")).toBe("2026학년도 9월 전체 협의 안건");
   });
 });

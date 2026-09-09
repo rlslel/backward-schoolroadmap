@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SEED_TASKS } from "./data/tasks.seed";
+import { DEPTS, SEED_TASKS } from "./data/tasks.seed";
 import { buildTaskLookup, loadSheet, pickSheetUrl, sheetIssueNotice, type SheetLoadResult } from "./lib/sheet";
 import {
   clearStore,
@@ -10,13 +10,17 @@ import {
   type StorageLike,
 } from "./lib/storage";
 import { buildTasks, groupByMonth, summarize, urgentItems } from "./lib/view";
+import { meetingAgenda, pendingDecisions, schoolDepts, upcomingAcademic } from "./lib/agenda";
 import {
-  ALL_DEPTS,
-  deptsOf,
-  meetingAgenda,
-  pendingDecisions,
-  upcomingAcademic,
-} from "./lib/agenda";
+  addMeeting,
+  allMeetings,
+  buildMeeting,
+  describeScope,
+  filterByMeeting,
+  findMeeting,
+  removeMeeting,
+  type MeetingInput,
+} from "./lib/meeting";
 import type { Store } from "./types";
 import {
   addCustomTask,
@@ -97,8 +101,19 @@ export default function App() {
     });
   }, []);
 
-  const setDept = useCallback((dept: string) => {
-    setStore((prev) => ({ ...prev, ui: { ...prev.ui, dept } }));
+  const setMeeting = useCallback((meetingId: string) => {
+    setStore((prev) => ({ ...prev, ui: { ...prev.ui, meetingId } }));
+  }, []);
+
+  const addMeetingBody = useCallback((input: MeetingInput) => {
+    setStore((prev) => {
+      const used = new Set(prev.meetings.map((m) => m.id));
+      return addMeeting(prev, buildMeeting(input, used));
+    });
+  }, []);
+
+  const removeMeetingBody = useCallback((meetingId: string) => {
+    setStore((prev) => removeMeeting(prev, meetingId));
   }, []);
 
   const disableTask = useCallback((taskId: string) => {
@@ -133,19 +148,23 @@ export default function App() {
     [store, sheet, today],
   );
 
-  const depts = useMemo(() => [ALL_DEPTS, ...deptsOf(views)], [views]);
-  const dept = depts.includes(store.ui.dept) ? store.ui.dept : ALL_DEPTS;
+  const depts = useMemo(() => schoolDepts(DEPTS, store.customTasks), [store.customTasks]);
+  const meetings = useMemo(() => allMeetings(store, depts), [store, depts]);
+  const meeting = useMemo(
+    () => findMeeting(store, depts, store.ui.meetingId),
+    [store, depts],
+  );
 
   const months = useMemo(() => groupByMonth(views), [views]);
   const summary = useMemo(() => summarize(views), [views]);
   const todo = useMemo(() => urgentItems(views), [views]);
-  const agenda = useMemo(() => meetingAgenda(views, dept), [views, dept]);
+  const agenda = useMemo(() => meetingAgenda(views, meeting), [views, meeting]);
   const academic = useMemo(() => upcomingAcademic(views, today), [views, today]);
   const pendingAll = useMemo(() => pendingDecisions(views, today), [views, today]);
-  const pendingDept = useMemo(
-    () => (dept === ALL_DEPTS ? pendingAll : pendingAll.filter((p) => p.view.task.dept === dept)),
-    [pendingAll, dept],
-  );
+  const pendingDept = useMemo(() => {
+    const 대상 = new Set(filterByMeeting(views, meeting).map((v) => v.task.id));
+    return pendingAll.filter((p) => 대상.has(p.view.task.id));
+  }, [pendingAll, views, meeting]);
 
   return (
     <div className="min-h-screen bg-page">
@@ -213,9 +232,9 @@ export default function App() {
         {tab === "home" && (
           <div className="mt-3">
             <Dashboard
-              dept={dept}
-              depts={depts}
-              onDeptChange={setDept}
+              meeting={meeting}
+              meetings={meetings}
+              onMeetingChange={setMeeting}
               agenda={agenda}
               academic={academic}
               todo={todo}
@@ -258,16 +277,19 @@ export default function App() {
         {tab === "agenda" && (
           <div className="mt-4">
             <div className="no-print mb-3 flex flex-wrap items-center gap-2">
-              <label className="text-xs text-ink-soft">부서</label>
+              <label className="text-xs text-ink-soft">회의</label>
               <select
-                value={dept}
-                onChange={(e) => setDept(e.target.value)}
+                value={meeting.id}
+                onChange={(e) => setMeeting(e.target.value)}
                 className="rounded border border-line-strong bg-card px-2 py-1 text-xs text-ink"
               >
-                {depts.map((d) => (
-                  <option key={d}>{d}</option>
+                {meetings.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
                 ))}
               </select>
+              <span className="text-xs text-ink-faint">{describeScope(meeting)}</span>
               <span className="grow" />
               <button
                 type="button"
@@ -281,7 +303,8 @@ export default function App() {
             <AgendaSheet
               schoolYear={SCHOOL_YEAR}
               today={today}
-              dept={dept}
+              meetingName={meeting.name}
+              scope={describeScope(meeting)}
               agenda={agenda}
               pending={pendingDept}
             />
@@ -291,7 +314,11 @@ export default function App() {
         {tab === "setup" && (
           <div className="mt-4">
             <SchoolSetup
-              depts={depts.filter((d) => d !== ALL_DEPTS)}
+              depts={depts}
+              meetings={store.meetings}
+              allMeetingNames={meetings}
+              onAddMeeting={addMeetingBody}
+              onRemoveMeeting={removeMeetingBody}
               sheetUrl={store.sheetUrl}
               customTasks={store.customTasks}
               disabledTasks={disabledSeedTasks(store, SEED_TASKS)}

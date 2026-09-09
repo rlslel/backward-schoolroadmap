@@ -1,7 +1,7 @@
 // localStorage 래퍼. 저장이 막히거나 내용이 깨져 있어도 앱이 죽지 않는 것이 목표다.
 // 학교 PC의 브라우저 정책이나 시크릿 모드에서는 저장 자체가 막힐 수 있다.
 
-import { SCHEMA_VERSION, type Store, type Task, type UiState } from "../types";
+import { SCHEMA_VERSION, type MeetingBody, type Store, type Task, type UiState } from "../types";
 
 export const STORAGE_KEY = "backward-schoolroadmap";
 
@@ -45,6 +45,7 @@ export function createEmptyStore(schoolYear: number): Store {
     schoolYear,
     overrides: {},
     customTasks: [],
+    meetings: [],
     checks: {},
     ui: defaultUi(),
   };
@@ -81,6 +82,7 @@ function coerce(raw: unknown, schoolYear: number): Store | null {
     schoolYear: typeof raw.schoolYear === "number" ? raw.schoolYear : schoolYear,
     overrides: isRecord(raw.overrides) ? (raw.overrides as Store["overrides"]) : {},
     customTasks: Array.isArray(raw.customTasks) ? (raw.customTasks as Task[]) : [],
+    meetings: Array.isArray(raw.meetings) ? (raw.meetings as MeetingBody[]) : [],
     sheetUrl: typeof raw.sheetUrl === "string" ? raw.sheetUrl : undefined,
     checks: isRecord(raw.checks) ? (raw.checks as Record<string, boolean>) : {},
     ui: {
@@ -88,6 +90,7 @@ function coerce(raw: unknown, schoolYear: number): Store | null {
       grade: typeof grade === "number" || grade === "all" ? grade : "all",
       category: typeof ui.category === "string" ? (ui.category as UiState["category"]) : "all",
       month: typeof month === "number" || month === "all" ? month : "all",
+      meetingId: typeof ui.meetingId === "string" ? ui.meetingId : undefined,
     },
   };
 }

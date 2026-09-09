@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { DEFAULT_SUBTASKS, validateCustomTask, type CustomTaskInput } from "../lib/customTask";
+import { describeScope, validateMeeting, type MeetingInput } from "../lib/meeting";
 import { buildShareLink } from "../lib/sheet";
-import { CATEGORY_LABEL, type Task } from "../types";
+import { CATEGORY_LABEL, type MeetingBody, type Task } from "../types";
 
 interface Props {
   depts: string[];
@@ -9,6 +10,10 @@ interface Props {
   customTasks: Task[];
   disabledTasks: Task[];
   offByDefault: Task[];
+  meetings: MeetingBody[];
+  allMeetingNames: MeetingBody[];
+  onAddMeeting: (input: MeetingInput) => void;
+  onRemoveMeeting: (meetingId: string) => void;
   onAdd: (input: CustomTaskInput) => void;
   onRemove: (taskId: string) => void;
   onEnable: (taskId: string, enabled: boolean) => void;
@@ -45,6 +50,10 @@ function TaskRow({
 
 export default function SchoolSetup({
   depts,
+  meetings,
+  allMeetingNames,
+  onAddMeeting,
+  onRemoveMeeting,
   sheetUrl,
   customTasks,
   disabledTasks,
@@ -56,6 +65,14 @@ export default function SchoolSetup({
   return (
     <div className="space-y-4">
       <ShareSection sheetUrl={sheetUrl} />
+
+      <MeetingSection
+        depts={depts}
+        meetings={meetings}
+        allMeetingNames={allMeetingNames}
+        onAdd={onAddMeeting}
+        onRemove={onRemoveMeeting}
+      />
 
       <Section
         title="우리 학교 업무 추가"
@@ -326,5 +343,158 @@ function AddForm({ depts, onAdd }: { depts: string[]; onAdd: (input: CustomTaskI
         추가
       </button>
     </div>
+  );
+}
+
+// ── 회의체 ────────────────────────────────────────────────────────
+
+function MeetingSection({
+  depts,
+  meetings,
+  allMeetingNames,
+  onAdd,
+  onRemove,
+}: {
+  depts: string[];
+  meetings: MeetingBody[];
+  allMeetingNames: MeetingBody[];
+  onAdd: (input: MeetingInput) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [note, setNote] = useState("");
+  const [pickedDepts, setPickedDepts] = useState<string[]>([]);
+  const [pickedGrades, setPickedGrades] = useState<number[]>([]);
+  const [errors, setErrors] = useState<string[]>([]);
+
+  const toggle = <T,>(list: T[], value: T): T[] =>
+    list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+
+  const submit = () => {
+    const input: MeetingInput = { name, note, depts: pickedDepts, grades: pickedGrades, taskIds: [] };
+    const found = validateMeeting(input, allMeetingNames);
+    setErrors(found);
+    if (found.length > 0) return;
+    onAdd(input);
+    setName("");
+    setNote("");
+    setPickedDepts([]);
+    setPickedGrades([]);
+  };
+
+  return (
+    <Section
+      title="회의체"
+      hint="학교마다 회의 이름과 묶는 방식이 다릅니다. 우리 학교 회의를 직접 만들어 두면 회의 안건 탭에서 고를 수 있습니다."
+    >
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex min-w-40 grow flex-col gap-1">
+            <span className="text-xs text-ink-soft">회의 이름</span>
+            <input
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setErrors([]);
+              }}
+              placeholder="예: 미래두레, 3학년 교실마실"
+              className="rounded border border-line-strong bg-card px-2 py-1.5 text-sm text-ink"
+            />
+          </label>
+          <label className="flex min-w-32 flex-col gap-1">
+            <span className="text-xs text-ink-soft">주기 (선택)</span>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="예: 매주 화요일"
+              className="rounded border border-line-strong bg-card px-2 py-1.5 text-sm text-ink"
+            />
+          </label>
+        </div>
+
+        <div>
+          <p className="mb-1 text-xs text-ink-soft">
+            어떤 업무를 볼까요 <span className="text-ink-faint">— 아무것도 안 고르면 전체를 봅니다</span>
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {depts.map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setPickedDepts((p) => toggle(p, d))}
+                className={`rounded border px-2 py-1 text-xs ${
+                  pickedDepts.includes(d)
+                    ? "border-annual-ink bg-annual text-annual-ink"
+                    : "border-line-strong text-ink-soft hover:bg-sunken"
+                }`}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {[1, 2, 3, 4, 5, 6].map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setPickedGrades((p) => toggle(p, g))}
+                className={`rounded border px-2 py-1 text-xs ${
+                  pickedGrades.includes(g)
+                    ? "border-annual-ink bg-annual text-annual-ink"
+                    : "border-line-strong text-ink-soft hover:bg-sunken"
+                }`}
+              >
+                {g}학년
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-ink-faint">
+            범위 · {describeScope({ id: "", name: "", depts: pickedDepts, grades: pickedGrades, taskIds: [] })}
+          </p>
+        </div>
+
+        {errors.length > 0 && (
+          <ul className="space-y-0.5 rounded border border-late-line bg-late px-3 py-2">
+            {errors.map((e) => (
+              <li key={e} className="text-xs text-late-ink">
+                {e}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <button
+          type="button"
+          onClick={submit}
+          className="rounded border border-line-strong bg-card px-3 py-1.5 text-sm font-medium text-ink hover:bg-sunken"
+        >
+          회의 추가
+        </button>
+      </div>
+
+      {meetings.length > 0 && (
+        <ul className="mt-4 border-t border-line pt-2">
+          {meetings.map((m) => (
+            <li
+              key={m.id}
+              className="flex items-center gap-2 border-b border-line py-1.5 text-xs last:border-0"
+            >
+              <span className="shrink-0 font-medium text-ink">{m.name}</span>
+              {m.note && <span className="shrink-0 text-ink-faint">{m.note}</span>}
+              <span className="min-w-0 flex-1 truncate text-ink-soft">{describeScope(m)}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`「${m.name}」 회의를 지웁니다.`)) onRemove(m.id);
+                }}
+                className="shrink-0 rounded border border-line-strong px-1.5 py-0.5 text-[11px] text-late-ink hover:bg-late"
+              >
+                지우기
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
   );
 }

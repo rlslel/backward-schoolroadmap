@@ -5,7 +5,8 @@ import { formatKo } from "../lib/dates";
 interface Props {
   schoolYear: number;
   today: Date;
-  dept: string;
+  meetingName: string;
+  scope: string;
   agenda: AgendaEntry[];
   pending: PendingDecision[];
 }
@@ -16,7 +17,7 @@ interface Props {
  * 담당자를 적는 칸은 손으로 쓰도록 비워 둔다. 앱에 성명을 저장하지 않기 위해서다.
  * 인쇄는 브라우저 인쇄 기능(window.print)과 인쇄 전용 CSS 로 처리한다.
  */
-export default function AgendaSheet({ schoolYear, today, dept, agenda, pending }: Props) {
+export default function AgendaSheet({ schoolYear, today, meetingName, scope, agenda, pending }: Props) {
   const 안건있음 = agenda.length > 0 || pending.length > 0;
 
   // 없는 항목은 건너뛰되 번호는 이어지게 매긴다. 1 다음에 3이 나오면 빠진 줄 안다.
@@ -26,14 +27,14 @@ export default function AgendaSheet({ schoolYear, today, dept, agenda, pending }
   return (
     <div className="print-sheet rounded-lg border border-line bg-card p-6">
       <header className="mb-4 border-b-2 border-ink pb-3">
-        <h2 className="text-lg font-semibold text-ink">{agendaTitle(schoolYear, today, dept)}</h2>
+        <h2 className="text-lg font-semibold text-ink">{agendaTitle(schoolYear, today, meetingName)}</h2>
         <p className="mt-1 text-xs text-ink-soft">
-          작성일 {formatKo(today)} · 앞으로 한 달 안에 처리해야 할 항목
+          작성일 {formatKo(today)} · 범위 {scope} · 앞으로 한 달 안에 처리해야 할 항목
         </p>
       </header>
 
       {!안건있음 && (
-        <p className="py-8 text-center text-sm text-ink-faint">이번 달 이 부서에서 다룰 안건이 없습니다.</p>
+        <p className="py-8 text-center text-sm text-ink-faint">이번 달 이 회의에서 다룰 안건이 없습니다.</p>
       )}
 
       {agenda.length > 0 && (

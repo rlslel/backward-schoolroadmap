@@ -55,6 +55,25 @@ export interface UiState {
   grade: number | "all";
   category: Category | "all";
   month: number | "all";
+  /** 회의 안건에서 고른 회의체. 없으면 전체. */
+  meetingId?: string;
+}
+
+/**
+ * 학교가 직접 만드는 회의체.
+ *
+ * 학교마다 회의 이름과 묶는 방식이 다르다. 어떤 학교는 부서별로, 어떤 학교는 학년별로,
+ * 어떤 학교는 주제별로 모인다. 코드에 특정 학교의 회의 이름을 박으면 다른 학교에서 못 쓴다.
+ * 그래서 이름과 범위를 학교가 정하게 한다.
+ */
+export interface MeetingBody {
+  id: string;
+  name: string; // "미래두레", "3학년 교실마실"
+  note?: string; // "매주 화요일" 같은 자유 표기
+  /** 아래 셋이 모두 비면 전체 업무를 본다. 하나라도 있으면 해당하는 것만 본다. */
+  depts: string[];
+  grades: number[];
+  taskIds: string[];
 }
 
 export interface Store {
@@ -63,6 +82,7 @@ export interface Store {
   overrides: Record<string, TaskOverride>;
   customTasks: Task[];
   sheetUrl?: string; // 학교 공유 시트의 「웹에 게시」 CSV 주소
+  meetings: MeetingBody[]; // 학교가 직접 만든 회의체
   checks: Record<string, boolean>; // "taskId::subtaskId" → 완료 여부
   ui: UiState;
 }
