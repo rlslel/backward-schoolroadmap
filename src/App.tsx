@@ -31,13 +31,19 @@ import {
   setEnabled,
   type CustomTaskInput,
 } from "./lib/customTask";
+import { clearedFilter, filterMonths, filterTasks } from "./lib/filter";
+import { buildSampleData } from "./lib/sample";
+import type { UiState } from "./types";
 import AgendaSheet from "./components/AgendaSheet";
+import FilterBar from "./components/FilterBar";
+import Onboarding from "./components/Onboarding";
 import Dashboard from "./components/Dashboard";
 import SchoolSetup from "./components/SchoolSetup";
 import TaskCard from "./components/TaskCard";
 
 const SCHOOL_YEAR = 2026;
 const LOOKUP = buildTaskLookup(SEED_TASKS);
+const ONBOARDING_KEY = "backward-schoolroadmap::onboarded";
 
 type Tab = "home" | "schedule" | "agenda" | "setup";
 
@@ -57,6 +63,8 @@ export default function App() {
   const [sheet, setSheet] = useState<SheetLoadResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("home");
+  const [sampleAnchors, setSampleAnchors] = useState<Record<string, string> | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const today = useMemo(() => new Date(), []);
 
@@ -67,6 +75,15 @@ export default function App() {
 
     setStore(next);
     if (loaded.notice) setNotices((n) => [...n, loaded.notice!]);
+
+    // 처음 여는 사람에게만 안내를 띄운다
+    try {
+      if (storage.current?.getItem(ONBOARDING_KEY) !== "1" && loaded.status === "empty") {
+        setShowOnboarding(true);
+      }
+    } catch {
+      // 저장이 막힌 브라우저에서는 안내를 띄우지 않는다
+    }
 
     let cancelled = false;
     void loadSheet({
@@ -99,6 +116,60 @@ export default function App() {
       else delete checks[key];
       return { ...prev, checks };
     });
+  }, []);
+
+  const closeOnboarding = useCallback((dontShowAgain: boolean) => {
+    setShowOnboarding(false);
+    if (!dontShowAgain) return;
+    try {
+      storage.current?.setItem(ONBOARDING_KEY, "1");
+    } catch {
+      // 저장이 막혀도 화면은 닫힌다
+    }
+  }, []);
+
+  const setFilter = useCallback((patch: Partial<UiState>) => {
+    setStore((prev) => ({ ...prev, ui: { ...prev.ui, ...patch } }));
+  }, []);
+
+  const clearFilter = useCallback(() => {
+    setStore((prev) => ({ ...prev, ui: clearedFilter(prev.ui) }));
+  }, []);
+
+  const setAnchor = useCallback((taskId: string, date: string) => {
+    setStore((prev) => {
+      const before = prev.overrides[taskId] ?? {};
+      return {
+        ...prev,
+        overrides: { ...prev.overrides, [taskId]: { ...before, anchor: { mode: "date", date } } },
+      };
+    });
+  }, []);
+
+  const setOffset = useCallback((taskId: string, subtaskId: string, offsetDays: number) => {
+    if (!Number.isFinite(offsetDays)) return;
+    setStore((prev) => {
+      const before = prev.overrides[taskId] ?? {};
+      const offsets = { ...(before.offsets ?? {}), [subtaskId]: offsetDays };
+      return { ...prev, overrides: { ...prev.overrides, [taskId]: { ...before, offsets } } };
+    });
+  }, []);
+
+  const resetOffsets = useCallback((taskId: string) => {
+    setStore((prev) => {
+      const before = prev.overrides[taskId];
+      if (!before) return prev;
+      const { offsets: _drop, ...rest } = before;
+      return { ...prev, overrides: { ...prev.overrides, [taskId]: rest } };
+    });
+  }, []);
+
+  const loadSample = useCallback(() => {
+    const sample = buildSampleData(SEED_TASKS, SCHOOL_YEAR, new Date());
+    setStore({ ...sample.store, sheetUrl: undefined });
+    setSampleAnchors(sample.anchors);
+    setTab("home");
+    setNotices(["예시 데이터를 불러왔습니다. 「내 데이터 전체 삭제」를 누르면 지워집니다."]);
   }, []);
 
   const setMeeting = useCallback((meetingId: string) => {
@@ -139,13 +210,20 @@ export default function App() {
     if (!window.confirm("이 브라우저에 저장된 완료 표시와 설정을 모두 지웁니다. 계속할까요?")) return;
     clearStore(storage.current);
     setStore(createEmptyStore(SCHOOL_YEAR));
+    setSampleAnchors(null);
     setNotices(["저장된 내용을 모두 지웠습니다."]);
   }, []);
 
   // 캐시하지 않는다. 앵커가 바뀌면 즉시 전부 다시 계산되어야 한다.
   const views = useMemo(
-    () => buildTasks({ tasks: SEED_TASKS, store, sheetAnchors: sheet?.anchors ?? {}, today }),
-    [store, sheet, today],
+    () =>
+      buildTasks({
+        tasks: SEED_TASKS,
+        store,
+        sheetAnchors: sampleAnchors ?? sheet?.anchors ?? {},
+        today,
+      }),
+    [store, sheet, today, sampleAnchors],
   );
 
   const depts = useMemo(() => schoolDepts(DEPTS, store.customTasks), [store.customTasks]);
@@ -155,7 +233,11 @@ export default function App() {
     [store, depts],
   );
 
-  const months = useMemo(() => groupByMonth(views), [views]);
+  const filtered = useMemo(() => filterTasks(views, store.ui), [views, store.ui]);
+  const months = useMemo(
+    () => filterMonths(groupByMonth(filtered), store.ui.month),
+    [filtered, store.ui.month],
+  );
   const summary = useMemo(() => summarize(views), [views]);
   const todo = useMemo(() => urgentItems(views), [views]);
   const agenda = useMemo(() => meetingAgenda(views, meeting), [views, meeting]);
@@ -168,6 +250,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-page">
+      {showOnboarding && <Onboarding onClose={closeOnboarding} />}
+
       <header className="no-print border-b border-line bg-card">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
           <h1 className="text-base font-semibold text-ink">학교업무 역산 로드맵</h1>
@@ -182,8 +266,15 @@ export default function App() {
 
           <button
             type="button"
+            onClick={loadSample}
+            className="rounded-md border border-line-strong px-2 py-1 text-xs text-ink-soft hover:bg-sunken"
+          >
+            예시 데이터로 둘러보기
+          </button>
+          <button
+            type="button"
             onClick={deleteAll}
-            className="rounded border border-line-strong px-2 py-1 text-xs text-ink-soft hover:bg-sunken"
+            className="rounded-md border border-line-strong px-2 py-1 text-xs text-ink-soft hover:bg-sunken"
           >
             내 데이터 전체 삭제
           </button>
@@ -247,16 +338,31 @@ export default function App() {
         )}
 
         {tab === "schedule" && (
-          <div className="mt-4 space-y-5">
+          <div className="mt-4">
+            <FilterBar
+              ui={store.ui}
+              depts={depts}
+              count={filtered.length}
+              onChange={setFilter}
+              onClear={clearFilter}
+            />
+
+            {filtered.length === 0 && (
+              <p className="card px-4 py-8 text-center text-sm text-ink-faint">
+                조건에 맞는 업무가 없습니다. 필터를 풀어 보세요.
+              </p>
+            )}
+
+            <div className="space-y-5">
             {months.map((month) => (
               <section key={month.month}>
-                <h2 className="sticky top-0 z-10 -mx-1 bg-page/95 px-1 py-2 text-sm font-semibold text-ink-soft backdrop-blur">
+                <h2 className="sticky top-0 z-10 bg-page/90 py-2 text-sm font-semibold text-ink-soft backdrop-blur">
                   {month.label}
                   <span className="tnum ml-2 font-normal text-ink-faint">{month.tasks.length}건</span>
                 </h2>
 
                 {month.tasks.length === 0 ? (
-                  <p className="px-1 pb-1 text-xs text-ink-faint">등록된 업무가 없습니다.</p>
+                  <p className="pb-1 text-xs text-ink-faint">등록된 업무가 없습니다.</p>
                 ) : (
                   <div className="space-y-2.5">
                     {month.tasks.map((view) => (
@@ -265,12 +371,16 @@ export default function App() {
                         view={view}
                         onToggle={toggleCheck}
                         onDisable={disableTask}
+                        onAnchorChange={setAnchor}
+                        onOffsetChange={setOffset}
+                        onResetOffsets={resetOffsets}
                       />
                     ))}
                   </div>
                 )}
               </section>
             ))}
+            </div>
           </div>
         )}
 

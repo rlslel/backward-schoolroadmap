@@ -15,7 +15,7 @@ export default function NowPanel({ summary, urgent, onToggle }: Props) {
 
   if (urgent.length === 0) {
     return (
-      <section className="rounded-lg border border-line bg-card px-4 py-3">
+      <section className="card px-4 py-3">
         <p className="text-sm text-ink-soft">
           지금 급한 일은 없습니다. 7일 안에 해야 할 항목이 생기면 여기에 먼저 표시됩니다.
         </p>
@@ -24,7 +24,7 @@ export default function NowPanel({ summary, urgent, onToggle }: Props) {
   }
 
   return (
-    <section className="overflow-hidden rounded-lg border border-line bg-card">
+    <section className="card overflow-hidden">
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line px-4 py-2.5">
         <h2 className="text-sm font-semibold text-ink">지금 해야 할 일</h2>
         {summary.late > 0 && (

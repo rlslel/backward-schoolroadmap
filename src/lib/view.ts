@@ -5,7 +5,7 @@
 
 import type { Store, SubTask, Task, TaskOverride } from "../types";
 import { checkKey, effectiveOffset, isOffsetCustomized } from "../types";
-import { daysUntil, formatKo, offsetLabel, resolveDate, schoolYearMonths } from "./dates";
+import { daysUntil, formatKo, offsetLabel, resolveDate, schoolYearMonths, toISO } from "./dates";
 import { effectiveAnchor, type AnchorSource, type EffectiveAnchor } from "./sheet";
 
 /** 며칠 안으로 다가온 것을 「임박」으로 볼 것인가. 이 앱을 쓰는 이유가 이 강조다. */
@@ -50,6 +50,8 @@ export interface ViewTask {
   anchorSource: AnchorSource;
   anchorDate: Date;
   anchorText: string;
+  /** 날짜 입력칸에 채울 값. 주차로 배치된 업무도 계산된 날짜가 들어간다. */
+  anchorISO: string;
   subtasks: ViewSubtask[];
   /** 법정 업무인데 근거가 비어 있는가. 화면에서 경고로 표시한다. */
   needsBasis: boolean;
@@ -135,6 +137,7 @@ function buildTask(task: Task, options: BuildViewOptions): ViewTask | null {
     anchorSource: anchor.source,
     anchorDate: anchorResolved.date,
     anchorText: formatKo(anchorResolved.date),
+    anchorISO: toISO(anchorResolved.date),
     subtasks,
     needsBasis: task.category === "legal" && !task.basis,
     lateCount: subtasks.filter((s) => s.status === "late").length,

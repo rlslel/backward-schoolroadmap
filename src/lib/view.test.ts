@@ -280,3 +280,18 @@ describe("기안 제목은 복사해서 바로 쓸 수 있어야 한다", () => 
     }
   });
 });
+
+describe("행사일 입력칸에 채울 값", () => {
+  it("날짜로 지정된 업무", () => {
+    const [t] = buildTasks({ ...base, store: storeWith() });
+    expect(t.anchorISO).toBe("2026-09-11");
+  });
+
+  it("주차로 배치된 업무도 계산된 날짜가 들어간다", () => {
+    // 비어 있으면 사용자는 화면에 날짜가 보이는데 입력칸만 빈 것을 본다
+    const task: Task = { ...SPORTS, anchor: { mode: "week", month: 9, week: 2 } };
+    const [t] = buildTasks({ ...base, tasks: [task], store: storeWith() });
+    expect(t.anchorISO).toBe("2026-09-14");
+    expect(t.anchorText).toBe("9. 14.(월)");
+  });
+});

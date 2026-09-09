@@ -5,20 +5,23 @@ import type { MeetingBody } from "../types";
 function Panel({
   title,
   count,
+  tint,
   action,
   children,
 }: {
   title: string;
   count?: string;
+  /** 칸마다 다른 파스텔 톤. 네 칸이 한눈에 구분된다. */
+  tint: string;
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     // 네 칸의 높이를 맞춰야 한눈에 들어온다. 넘치는 내용은 칸 안에서 스크롤한다.
-    <section className="flex h-72 flex-col rounded-lg border border-line bg-card">
-      <header className="flex items-center gap-2 border-b border-line px-3 py-2">
+    <section className="card flex h-72 flex-col overflow-hidden">
+      <header className={`flex items-center gap-2 border-b border-line px-3 py-2 ${tint}`}>
         <h2 className="text-sm font-semibold text-ink">{title}</h2>
-        {count && <span className="tnum text-xs text-ink-faint">{count}</span>}
+        {count && <span className="tnum text-xs text-ink-soft">{count}</span>}
         <span className="grow" />
         {action}
       </header>
@@ -81,6 +84,7 @@ export default function Dashboard({
     <div className="grid gap-3 md:grid-cols-2">
       {/* ① 부서 회의 안건 */}
       <Panel
+        tint="bg-panel-a"
         title={`${meeting.name} 회의 안건`}
         count={안건수 > 0 ? `${안건수}건` : undefined}
         action={
@@ -89,7 +93,7 @@ export default function Dashboard({
               value={meeting.id}
               onChange={(e) => onMeetingChange(e.target.value)}
               aria-label="회의 선택"
-              className="max-w-32 rounded border border-line-strong bg-card px-1.5 py-0.5 text-xs text-ink-soft"
+              className="max-w-32 rounded border border-line-strong bg-card/70 px-1.5 py-0.5 text-xs text-ink-soft"
             >
               {meetings.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -100,7 +104,7 @@ export default function Dashboard({
             <button
               type="button"
               onClick={onOpenAgenda}
-              className="rounded border border-line-strong px-1.5 py-0.5 text-xs text-ink-soft hover:bg-sunken"
+              className="rounded border border-line-strong bg-card/70 px-1.5 py-0.5 text-xs text-ink-soft hover:bg-card"
             >
               인쇄
             </button>
@@ -117,7 +121,7 @@ export default function Dashboard({
                 <ul className="mt-0.5">
                   {entry.items.map((item) => (
                     <li key={item.key} className="flex items-center gap-2 px-1 py-0.5 text-xs">
-                      <span className="tnum w-20 shrink-0 text-ink-faint">{item.dateText}</span>
+                      <span className="tnum w-16 shrink-0 text-ink-faint sm:w-20">{item.dateText}</span>
                       <span className="min-w-0 flex-1 truncate text-ink-soft">{item.subtask.title}</span>
                       <DayTag item={item} />
                     </li>
@@ -131,13 +135,14 @@ export default function Dashboard({
 
       {/* ② 통상학사 — 1달 내 */}
       <Panel
+        tint="bg-panel-b"
         title="통상학사"
         count="앞으로 한 달"
         action={
           <button
             type="button"
             onClick={onOpenSchedule}
-            className="rounded border border-line-strong px-1.5 py-0.5 text-xs text-ink-soft hover:bg-sunken"
+            className="rounded border border-line-strong bg-card/70 px-1.5 py-0.5 text-xs text-ink-soft hover:bg-card"
           >
             전체 보기
           </button>
@@ -149,7 +154,7 @@ export default function Dashboard({
           <ul className="divide-y divide-line">
             {academic.map((v) => (
               <li key={v.task.id} className="flex items-center gap-2 px-1 py-1.5 text-xs">
-                <span className="tnum w-20 shrink-0 text-ink-soft">{v.anchorText}</span>
+                <span className="tnum w-16 shrink-0 text-ink-soft sm:w-20">{v.anchorText}</span>
                 <span className="min-w-0 flex-1 truncate font-medium text-ink">{v.task.title}</span>
                 <span className="shrink-0 text-ink-faint">{v.task.dept}</span>
                 {v.lateCount + v.soonCount > 0 && (
@@ -164,7 +169,7 @@ export default function Dashboard({
       </Panel>
 
       {/* ③ To do list */}
-      <Panel title="To do list" count={todo.length > 0 ? `${todo.length}건` : undefined}>
+      <Panel tint="bg-panel-c" title="To do list" count={todo.length > 0 ? `${todo.length}건` : undefined}>
         {todo.length === 0 ? (
           <Empty text="지금 급한 일이 없습니다." />
         ) : (
@@ -178,7 +183,7 @@ export default function Dashboard({
                   aria-label={`${subtask.subtask.title} 완료`}
                   className="mt-0.5 size-3.5 shrink-0 cursor-pointer accent-ink"
                 />
-                <span className="tnum w-20 shrink-0 text-ink-faint">{subtask.dateText}</span>
+                <span className="tnum w-16 shrink-0 text-ink-faint sm:w-20">{subtask.dateText}</span>
                 <span className="min-w-0 flex-1">
                   <span className="text-ink">{subtask.subtask.title}</span>
                   <span className="ml-1.5 text-ink-faint">{task.task.title}</span>
@@ -191,14 +196,14 @@ export default function Dashboard({
       </Panel>
 
       {/* ④ 정해야 할 것 */}
-      <Panel title="정해야 할 것" count={pending.length > 0 ? `${pending.length}건` : undefined}>
+      <Panel tint="bg-panel-d" title="정해야 할 것" count={pending.length > 0 ? `${pending.length}건` : undefined}>
         {pending.length === 0 ? (
           <Empty text="확정하지 않은 항목이 없습니다." />
         ) : (
           <ul className="divide-y divide-line">
             {pending.slice(0, 10).map((p) => (
               <li key={p.view.task.id} className="flex items-center gap-2 px-1 py-1.5 text-xs">
-                <span className="tnum w-20 shrink-0 text-ink-faint">{p.view.anchorText}</span>
+                <span className="tnum w-16 shrink-0 text-ink-faint sm:w-20">{p.view.anchorText}</span>
                 <span className="min-w-0 flex-1 truncate text-ink">{p.view.task.title}</span>
                 <span className="shrink-0 text-ink-faint">{p.view.task.dept}</span>
                 {p.reasons.map((reason) => (

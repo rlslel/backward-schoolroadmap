@@ -25,7 +25,7 @@ export default function AgendaSheet({ schoolYear, today, meetingName, scope, age
   const 다음번호 = () => (번호 += 1);
 
   return (
-    <div className="print-sheet rounded-lg border border-line bg-card p-6">
+    <div className="card print-sheet p-6">
       <header className="mb-4 border-b-2 border-ink pb-3">
         <h2 className="text-lg font-semibold text-ink">{agendaTitle(schoolYear, today, meetingName)}</h2>
         <p className="mt-1 text-xs text-ink-soft">

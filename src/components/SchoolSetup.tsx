@@ -21,7 +21,7 @@ interface Props {
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-line bg-card">
+    <section className="card">
       <header className="border-b border-line px-4 py-2.5">
         <h2 className="text-sm font-semibold text-ink">{title}</h2>
         {hint && <p className="mt-0.5 text-xs text-ink-faint">{hint}</p>}

@@ -33,9 +33,12 @@ function StatusTag({ item }: { item: ViewSubtask }) {
 interface Props {
   item: ViewSubtask;
   onToggle: (key: string, checked: boolean) => void;
+  /** 준비 기간 조정 중인가. 켜면 D-day 자리가 입력칸으로 바뀐다. */
+  editing?: boolean;
+  onOffsetChange?: (offsetDays: number) => void;
 }
 
-export default function SubtaskRow({ item, onToggle }: Props) {
+export default function SubtaskRow({ item, onToggle, editing, onOffsetChange }: Props) {
   const [open, setOpen] = useState(false);
   const { subtask } = item;
   const hasDetail = Boolean(item.draftTitle || subtask.attachments?.length || subtask.caution);
@@ -53,15 +56,25 @@ export default function SubtaskRow({ item, onToggle }: Props) {
           className="mt-1 size-4 shrink-0 cursor-pointer accent-ink"
         />
 
-        <span
-          className={`tnum w-14 shrink-0 pt-0.5 text-xs font-medium ${
-            dim ? "text-ink-faint" : "text-ink-soft"
-          }`}
-        >
-          {item.dLabel}
-        </span>
+        {editing && onOffsetChange ? (
+          <input
+            type="number"
+            value={item.offset}
+            onChange={(e) => onOffsetChange(Number(e.target.value))}
+            aria-label={`${subtask.title} 날짜 간격`}
+            className="tnum w-14 shrink-0 rounded border border-line-strong bg-card px-1 py-0.5 text-xs text-ink"
+          />
+        ) : (
+          <span
+            className={`tnum w-14 shrink-0 pt-0.5 text-xs font-medium ${
+              item.customized ? "text-annual-ink" : dim ? "text-ink-faint" : "text-ink-soft"
+            }`}
+          >
+            {item.dLabel}
+          </span>
+        )}
 
-        <span className={`tnum w-24 shrink-0 pt-0.5 text-xs ${dim ? "text-ink-faint" : "text-ink-soft"}`}>
+        <span className={`tnum w-20 shrink-0 pt-0.5 text-xs sm:w-24 ${dim ? "text-ink-faint" : "text-ink-soft"}`}>
           {item.dateText}
         </span>
 
@@ -109,7 +122,7 @@ function Detail({ item }: { item: ViewSubtask }) {
   };
 
   return (
-    <div className="ml-[4.6rem] mb-1.5 space-y-1.5 border-l-2 border-line pl-3 text-xs text-ink-soft">
+    <div className="mb-1.5 ml-8 space-y-1.5 border-l-2 border-line pl-3 text-xs text-ink-soft sm:ml-[4.6rem]">
       {item.draftTitle && (
         <p className="flex flex-wrap items-center gap-1.5">
           <span className="text-ink-faint">기안 제목</span>
