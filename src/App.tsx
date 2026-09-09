@@ -18,19 +18,30 @@ import {
   upcomingAcademic,
 } from "./lib/agenda";
 import type { Store } from "./types";
+import {
+  addCustomTask,
+  buildCustomTask,
+  disabledSeedTasks,
+  offByDefaultTasks,
+  removeCustomTask,
+  setEnabled,
+  type CustomTaskInput,
+} from "./lib/customTask";
 import AgendaSheet from "./components/AgendaSheet";
 import Dashboard from "./components/Dashboard";
+import SchoolSetup from "./components/SchoolSetup";
 import TaskCard from "./components/TaskCard";
 
 const SCHOOL_YEAR = 2026;
 const LOOKUP = buildTaskLookup(SEED_TASKS);
 
-type Tab = "home" | "schedule" | "agenda";
+type Tab = "home" | "schedule" | "agenda" | "setup";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "home", label: "홈" },
   { id: "schedule", label: "학사 일정" },
   { id: "agenda", label: "회의 안건" },
+  { id: "setup", label: "우리 학교" },
 ];
 
 export default function App() {
@@ -88,6 +99,25 @@ export default function App() {
 
   const setDept = useCallback((dept: string) => {
     setStore((prev) => ({ ...prev, ui: { ...prev.ui, dept } }));
+  }, []);
+
+  const disableTask = useCallback((taskId: string) => {
+    setStore((prev) => setEnabled(prev, taskId, false));
+  }, []);
+
+  const enableTask = useCallback((taskId: string, enabled: boolean) => {
+    setStore((prev) => setEnabled(prev, taskId, enabled));
+  }, []);
+
+  const addTask = useCallback((input: CustomTaskInput) => {
+    setStore((prev) => {
+      const used = new Set([...SEED_TASKS.map((t) => t.id), ...prev.customTasks.map((t) => t.id)]);
+      return addCustomTask(prev, buildCustomTask(input, used));
+    });
+  }, []);
+
+  const removeTask = useCallback((taskId: string) => {
+    setStore((prev) => removeCustomTask(prev, taskId));
   }, []);
 
   const deleteAll = useCallback(() => {
@@ -211,7 +241,12 @@ export default function App() {
                 ) : (
                   <div className="space-y-2.5">
                     {month.tasks.map((view) => (
-                      <TaskCard key={view.task.id} view={view} onToggle={toggleCheck} />
+                      <TaskCard
+                        key={view.task.id}
+                        view={view}
+                        onToggle={toggleCheck}
+                        onDisable={disableTask}
+                      />
                     ))}
                   </div>
                 )}
@@ -249,6 +284,21 @@ export default function App() {
               dept={dept}
               agenda={agenda}
               pending={pendingDept}
+            />
+          </div>
+        )}
+
+        {tab === "setup" && (
+          <div className="mt-4">
+            <SchoolSetup
+              depts={depts.filter((d) => d !== ALL_DEPTS)}
+              sheetUrl={store.sheetUrl}
+              customTasks={store.customTasks}
+              disabledTasks={disabledSeedTasks(store, SEED_TASKS)}
+              offByDefault={offByDefaultTasks(store, SEED_TASKS)}
+              onAdd={addTask}
+              onRemove={removeTask}
+              onEnable={enableTask}
             />
           </div>
         )}

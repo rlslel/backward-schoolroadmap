@@ -18,9 +18,10 @@ const ANCHOR_SOURCE_LABEL = {
 interface Props {
   view: ViewTask;
   onToggle: (key: string, checked: boolean) => void;
+  onDisable?: (taskId: string) => void;
 }
 
-export default function TaskCard({ view, onToggle }: Props) {
+export default function TaskCard({ view, onToggle, onDisable }: Props) {
   const { task } = view;
   const 남은일 = view.subtasks.length - view.doneCount;
 
@@ -55,6 +56,16 @@ export default function TaskCard({ view, onToggle }: Props) {
         <span className="tnum text-xs text-ink-faint">
           {남은일 === 0 ? "모두 완료" : `${view.doneCount}/${view.subtasks.length}`}
         </span>
+        {onDisable && (
+          <button
+            type="button"
+            onClick={() => onDisable(task.id)}
+            title="우리 학교가 하지 않는 업무로 표시합니다"
+            className="no-print shrink-0 rounded border border-line px-1.5 py-0.5 text-[11px] text-ink-faint hover:bg-sunken hover:text-ink-soft"
+          >
+            끄기
+          </button>
+        )}
       </header>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-sunken/50 px-3 py-1.5 text-xs">
