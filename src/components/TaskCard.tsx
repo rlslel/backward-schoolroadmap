@@ -146,7 +146,7 @@ export default function TaskCard({
         </p>
       )}
 
-      <ul className="notepad ruled px-1.5">
+      <ul className="notepad notepad-margin ruled px-1.5">
         {view.subtasks.map((item) => (
           <SubtaskRow
             key={item.key}

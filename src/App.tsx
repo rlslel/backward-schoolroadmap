@@ -439,6 +439,7 @@ export default function App() {
           <div className="mt-4">
             <SchoolSetup
               depts={depts}
+              seedTasks={SEED_TASKS}
               meetings={store.meetings}
               allMeetingNames={meetings}
               onAddMeeting={addMeetingBody}

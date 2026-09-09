@@ -106,8 +106,8 @@ body {
   background: #fffdf9;
 }
 
-/* 공책 여백선. 체크칸과 날짜 사이에 오도록 위치를 잡았다. */
-.notepad::before {
+/* 공책 여백선. 체크칸과 날짜 사이에 오도록 위치를 잡았다. 체크칸이 있는 목록에만 붙인다. */
+.notepad-margin::before {
   content: "";
   position: absolute;
   top: 0;

@@ -2,10 +2,12 @@ import { useState } from "react";
 import { DEFAULT_SUBTASKS, validateCustomTask, type CustomTaskInput } from "../lib/customTask";
 import { describeScope, validateMeeting, type MeetingInput } from "../lib/meeting";
 import { buildShareLink } from "../lib/sheet";
+import SheetGuide from "./SheetGuide";
 import { CATEGORY_LABEL, type MeetingBody, type Task } from "../types";
 
 interface Props {
   depts: string[];
+  seedTasks: Task[];
   sheetUrl?: string;
   customTasks: Task[];
   disabledTasks: Task[];
@@ -50,6 +52,7 @@ function TaskRow({
 
 export default function SchoolSetup({
   depts,
+  seedTasks,
   meetings,
   allMeetingNames,
   onAddMeeting,
@@ -65,6 +68,13 @@ export default function SchoolSetup({
   return (
     <div className="space-y-4">
       <ShareSection sheetUrl={sheetUrl} />
+
+      <Section
+        title="시트에 무엇을 적을 수 있나요"
+        hint="시트를 채우는 사람은 앱을 안 보고 시트만 봅니다. 아래를 보고 적으시면 됩니다."
+      >
+        <SheetGuide depts={depts} seedTasks={seedTasks} />
+      </Section>
 
       <MeetingSection
         depts={depts}

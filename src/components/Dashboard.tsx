@@ -25,7 +25,7 @@ function Panel({
         <span className="grow" />
         {action}
       </header>
-      <div className="min-h-0 grow overflow-y-auto p-2">{children}</div>
+      <div className="notepad min-h-0 grow overflow-y-auto px-2">{children}</div>
     </section>
   );
 }
@@ -114,9 +114,9 @@ export default function Dashboard({
         {agenda.length === 0 ? (
           <Empty text="이번 달 이 회의에서 다룰 안건이 없습니다." />
         ) : (
-          <ul className="space-y-2">
+          <ul className="ruled">
             {agenda.slice(0, 6).map((entry) => (
-              <li key={entry.task.task.id}>
+              <li key={entry.task.task.id} className="py-1.5">
                 <p className="px-1 text-xs font-medium text-ink">{entry.task.task.title}</p>
                 <ul className="mt-0.5">
                   {entry.items.map((item) => (
@@ -151,9 +151,9 @@ export default function Dashboard({
         {academic.length === 0 ? (
           <Empty text="한 달 안에 예정된 학사 행사가 없습니다." />
         ) : (
-          <ul className="divide-y divide-line">
+          <ul className="ruled">
             {academic.map((v) => (
-              <li key={v.task.id} className="flex items-center gap-2 px-1 py-1.5 text-xs">
+              <li key={v.task.id} className="flex items-center gap-2 px-1 py-2 text-xs">
                 <span className="tnum w-16 shrink-0 text-ink-soft sm:w-20">{v.anchorText}</span>
                 <span className="min-w-0 flex-1 truncate font-medium text-ink">{v.task.title}</span>
                 <span className="shrink-0 text-ink-faint">{v.task.dept}</span>
@@ -173,9 +173,9 @@ export default function Dashboard({
         {todo.length === 0 ? (
           <Empty text="지금 급한 일이 없습니다." />
         ) : (
-          <ul className="divide-y divide-line">
+          <ul className="ruled">
             {todo.slice(0, 10).map(({ task, subtask }) => (
-              <li key={subtask.key} className="flex items-start gap-2 px-1 py-1.5 text-xs">
+              <li key={subtask.key} className="flex items-start gap-2 px-1 py-2 text-xs">
                 <input
                   type="checkbox"
                   checked={false}
@@ -200,9 +200,9 @@ export default function Dashboard({
         {pending.length === 0 ? (
           <Empty text="확정하지 않은 항목이 없습니다." />
         ) : (
-          <ul className="divide-y divide-line">
+          <ul className="ruled">
             {pending.slice(0, 10).map((p) => (
-              <li key={p.view.task.id} className="flex items-center gap-2 px-1 py-1.5 text-xs">
+              <li key={p.view.task.id} className="flex items-center gap-2 px-1 py-2 text-xs">
                 <span className="tnum w-16 shrink-0 text-ink-faint sm:w-20">{p.view.anchorText}</span>
                 <span className="min-w-0 flex-1 truncate text-ink">{p.view.task.title}</span>
                 <span className="shrink-0 text-ink-faint">{p.view.task.dept}</span>

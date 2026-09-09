@@ -197,7 +197,7 @@ describe("시트에 한글 이름으로 적을 수 있다", () => {
     const csv = buildSheetTemplate(SEED_TASKS);
     const rows = csv.split("\r\n");
     expect(rows.length).toBe(SEED_TASKS.length + 1); // 머리글 한 줄
-    expect(rows[0]).toBe("업무,확정일");
+    expect(rows[0]).toBe("업무,확정일,부서");
   });
 });
 

@@ -234,9 +234,9 @@ describe("한글 업무 이름으로 적어도 읽는다", () => {
 describe("시트 서식 만들기 — 부장은 날짜만 채운다", () => {
   it("업무 이름이 미리 채워진 서식을 만든다", () => {
     const csv = buildSheetTemplate(TASKS);
-    expect(csv.split("\r\n")[0]).toBe("업무,확정일");
-    expect(csv).toContain("가을 운동회,");
-    expect(csv).toContain("졸업식,");
+    expect(csv.split("\r\n")[0]).toBe("업무,확정일,부서");
+    expect(csv).toContain("가을 운동회,,");
+    expect(csv).toContain("졸업식,,");
   });
 
   it("서식을 그대로 다시 읽으면 빈 날짜라 아무것도 안 나온다", () => {
@@ -249,7 +249,7 @@ describe("시트 서식 만들기 — 부장은 날짜만 채운다", () => {
 
   it("쉼표가 든 업무 이름도 안전하게 감싼다", () => {
     const csv = buildSheetTemplate([{ id: "x", title: "가을, 운동회" }] as Task[]);
-    expect(csv).toContain('"가을, 운동회",');
+    expect(csv).toContain('"가을, 운동회",,');
     expect(parseCsv(csv)[1][0]).toBe("가을, 운동회");
   });
 });

@@ -86,7 +86,8 @@ const EMPTY_RESULT: SheetParseResult = {
 };
 
 /** 날짜 칸에 이렇게 적으면 「우리 학교는 이 업무를 하지 않는다」는 뜻이다. */
-const OFF_VALUES = ["없음", "해당없음", "해당 없음", "미실시", "안함", "안 함", "-", "–", "x", "X"];
+export const OFF_LABELS = ["없음", "해당없음", "해당 없음", "미실시", "안함", "-", "X"] as const;
+const OFF_VALUES: string[] = [...OFF_LABELS, "안 함", "–", "x"];
 
 function isOffValue(text: string): boolean {
   return OFF_VALUES.includes(text.trim());
@@ -204,8 +205,9 @@ export function parseSheet(csvText: string, lookup: TaskLookup): SheetParseResul
  */
 export function buildSheetTemplate(tasks: Task[]): string {
   const escape = (value: string) => (/[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
-  const lines = ["업무,확정일"];
-  for (const task of tasks) lines.push(`${escape(task.title)},`);
+  // 부서까지 미리 채워 둔다. 부장은 날짜 칸만 채우면 된다.
+  const lines = ["업무,확정일,부서"];
+  for (const task of tasks) lines.push(`${escape(task.title)},,${escape(task.dept)}`);
   return lines.join("\r\n");
 }
 
